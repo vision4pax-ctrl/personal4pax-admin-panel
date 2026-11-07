@@ -10879,7 +10879,12 @@ async function prepararConfirmacionContratacionCandidato(silencioso) {
   _candCorreoEsConfirmacionContratacion = true;
   _candDocumentacionToken = (c.documentacion_token && !c.documentacion_recibida_en) ? c.documentacion_token : crypto.randomUUID();
   const urlDocumentacion = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}documentacion-candidato.html?token=${_candDocumentacionToken}`;
-  const { data: clausulaRgpd } = await sb.rpc('_texto_clausula_rgpd_documentacion_incorporacion').catch(() => ({ data: null }));
+  // César (07/11/2026, cuarta vuelta): CAUSA REAL encontrada — sb.rpc(...) de supabase-js no
+  // devuelve una Promise de verdad, sino un "thenable" que solo implementa .then(), no .catch().
+  // Llamar a .catch() directamente sobre eso explota con "sb.rpc(...).catch is not a function" —
+  // y como nada capturaba esa excepción, el envío se paraba en seco sin avisar nada, exactamente
+  // "no hace un carajo". Se usa la forma de dos argumentos de .then(), que sí existe siempre.
+  const { data: clausulaRgpd } = await sb.rpc('_texto_clausula_rgpd_documentacion_incorporacion').then((r) => r, () => ({ data: null }));
   const plantilla = plantillaCorreoConfirmacionContratacion(c, urlDocumentacion, clausulaRgpd);
   $('candCorreoAsunto').value = plantilla.asunto;
   $('candCorreoCuerpo').value = plantilla.cuerpo;
@@ -11067,7 +11072,7 @@ async function darAltaDesdeCanditado() {
   // 00" (migración 0112, generar_codigo_empleado) — se calcula ANTES del insert porque la propia
   // fecha_primera_incorporacion que se está a punto de guardar (hoy) es la que la función usa.
   const fechaAlta = new Date().toISOString().slice(0, 10);
-  const { data: codigoGenerado } = await sb.rpc('generar_codigo_empleado', { p_fecha: fechaAlta }).catch(() => ({ data: null }));
+  const { data: codigoGenerado } = await sb.rpc('generar_codigo_empleado', { p_fecha: fechaAlta }).then((r) => r, () => ({ data: null }));
   const { data: nuevo, error } = await sb
     .from('personas_trabajadoras')
     .insert({
