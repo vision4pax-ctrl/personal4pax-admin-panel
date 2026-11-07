@@ -8635,23 +8635,30 @@ async function guardarFormularioDisc(e) {
 // literal de esa tarjeta en el prototipo (gestiona también tareas administrativas de front-desk) —
 // no significa que comparta catálogo ni coeficientes con el puesto_key 'administracion', que sigue
 // siendo independiente más abajo en este mismo array.
+// César (07/11/2026, séptima vuelta): "así tenemos más coherencia en toda la producción" — el área
+// de cada departamento es ahora un campo explícito (`area`), no algo deducido del texto entre
+// paréntesis del label. Hacía falta: en "Obra / Reformas (Oficial, Peón)" el paréntesis NO es un
+// área, son ejemplos de categoría de puesto (lo mismo que ahora RR.HH. rellena a mano en
+// "Categoría:"/"Puesto:" del correo a gestoría) — deducirlo con una regex genérica daba
+// "Departamento: Oficial, Peón", que está mal. `label` sigue siendo el único texto que se muestra en
+// desplegables/tablas de toda la app; `area` es solo para ese correo.
 const CANDIDATO_DEPARTAMENTOS = [
-  { puestoKey: 'sala', label: 'Sala (Alimentos y Bebidas)' },
-  { puestoKey: 'cocina', label: 'Cocina (Alimentos y Bebidas)' },
-  { puestoKey: 'mantenimiento', label: 'Mantenimiento' },
-  { puestoKey: 'pisos', label: 'Pisos, Limpieza y Lavandería' },
-  { puestoKey: 'recepcion', label: 'Recepción / Administración' },
-  { puestoKey: 'reformas', label: 'Obra / Reformas (Oficial, Peón)' },
-  { puestoKey: 'administracion', label: 'Administración, RR.HH., Facturación y Compras' }
+  { puestoKey: 'sala', label: 'Sala (Alimentos y Bebidas)', area: 'Alimentos y Bebidas' },
+  { puestoKey: 'cocina', label: 'Cocina (Alimentos y Bebidas)', area: 'Alimentos y Bebidas' },
+  { puestoKey: 'mantenimiento', label: 'Mantenimiento', area: 'Mantenimiento' },
+  { puestoKey: 'pisos', label: 'Pisos, Limpieza y Lavandería', area: 'Pisos, Limpieza y Lavandería' },
+  { puestoKey: 'recepcion', label: 'Recepción / Administración', area: 'Recepción / Administración' },
+  { puestoKey: 'reformas', label: 'Obra / Reformas (Oficial, Peón)', area: 'Obra / Reformas' },
+  { puestoKey: 'administracion', label: 'Administración, RR.HH., Facturación y Compras', area: 'Administración, RR.HH., Facturación y Compras' }
 ];
-// César (07/11/2026): para el correo a gestoría, "Sala (Alimentos y Bebidas)" se escribe como
-// "Alimentos y Bebidas, Sala" — área primero, sin paréntesis (dato relevante, no una aclaración
-// entre paréntesis). Si el label no tiene ese formato "Puesto (Área)" (p. ej. "Mantenimiento"), se
-// deja tal cual.
-function _departamentoParaCorreoGestoria(label) {
-  if (!label) return '—';
-  const m = /^(.*?)\s*\((.*)\)\s*$/.exec(label.trim());
-  return m ? `${m[2]}, ${m[1]}` : label;
+// Busca el área por puesto_key (fuente fiable) y solo si el candidato no tiene puesto_key de
+// catálogo (registro antiguo o departamento libre) cae al texto de puesto_label como respaldo.
+function _areaParaCorreoGestoria(puestoKey, labelRespaldo) {
+  const dept = CANDIDATO_DEPARTAMENTOS.find((d) => d.puestoKey === puestoKey);
+  if (dept) return dept.area;
+  if (!labelRespaldo) return '—';
+  const m = /^(.*?)\s*\((.*)\)\s*$/.exec(labelRespaldo.trim());
+  return m ? m[2] : labelRespaldo;
 }
 const CANDIDATO_ESTADOS = {
   recibida: ['📥 Recibida', 'b-amber'],
@@ -10775,8 +10782,11 @@ function abrirEnviarDocumentacionGestoriaModal() {
   // paréntesis esto porque es un dato relevante [...] departamento, dos puntos, alimentos y bebida,
   // coma, sala" — el puesto_label del catálogo es "Sala (Alimentos y Bebidas)" (puesto + área entre
   // paréntesis); se invierte a "Área, Puesto" en una línea "Departamento:" propia, sin paréntesis.
-  const departamentoLinea = _departamentoParaCorreoGestoria(c.puesto_label);
-  $('candGestoriaCuerpo').value = `Buenos días,\n\nOs remitimos la documentación de incorporación de ${c.nombre} para tramitar su alta.\n\nDepartamento: ${departamentoLinea}\nTipo de contrato: \n\nDNI/NIE: ${c.dni_nie || '—'}\n${direccionLinea}Número de afiliación a la Seguridad Social: ${c.numero_seguridad_social || '—'}\n${ibanLinea}${certificadoBancarioLinea}\nUn saludo,\nDepartamento de RR.HH.`;
+  const departamentoLinea = _areaParaCorreoGestoria(c.puesto_key, c.puesto_label);
+  // César (07/11/2026, sexta vuelta): "departamento, categoría, y puesto" — tres líneas separadas;
+  // Categoría y Puesto (Camarero, Ayudante de Camarero...) no existen como dato en la ficha, así que
+  // van en blanco para que RR.HH. las rellene a mano, igual que Tipo de contrato.
+  $('candGestoriaCuerpo').value = `Buenos días,\n\nOs remitimos la documentación de incorporación de ${c.nombre} para tramitar su alta.\n\nDepartamento: ${departamentoLinea}\nCategoría: \nPuesto: \nTipo de contrato: \n\nDNI/NIE: ${c.dni_nie || '—'}\n${direccionLinea}Número de afiliación a la Seguridad Social: ${c.numero_seguridad_social || '—'}\n${ibanLinea}${certificadoBancarioLinea}\nUn saludo,\nDepartamento de RR.HH.`;
   $('modalEnviarDocumentacionGestoria').classList.remove('hidden');
 }
 function cerrarEnviarDocumentacionGestoriaModal() {
