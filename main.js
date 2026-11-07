@@ -10695,7 +10695,7 @@ function _renderDocsPanelGestoria(c) {
   const fila = (ok, etiqueta, nombreArchivo, storagePath, etiquetaError) => {
     const estado = ok ? '✅' : '⚠️';
     let html = `<div style="display:flex;align-items:center;gap:6px;">${estado} <b>${etiqueta}</b>${nombreArchivo ? ` — ${_escHtml(nombreArchivo)}` : ok ? '' : ' — falta'}</div>`;
-    return { html, storagePath, etiquetaError };
+    return { html, storagePath, etiquetaError, nombreArchivo };
   };
   const filas = [
     fila(!!c.dni_nie_adjunto_url, 'DNI/NIE', c.dni_nie_adjunto_nombre, c.dni_nie_adjunto_url, 'el DNI/NIE'),
@@ -10711,11 +10711,17 @@ function _renderDocsPanelGestoria(c) {
       enlace.href = '#';
       enlace.textContent = 'ver';
       enlace.style.marginLeft = '4px';
+      // César (07/11/2026, octava vuelta): "no puedes volver para atrás porque te saca de la
+      // aplicación [...] que no ocupe toda la pantalla [...] que sí se pueda cerrar sin que te mande
+      // fuera" — mismo problema que ya se arregló para el "ver" de la propia ficha (DNI/NIE,
+      // certificado bancario, CV): un window.open(url,'_blank') saca a una pestaña nueva sin más
+      // contexto que "atrás" del navegador, que cierra la app. Se usa aquí el mismo visor flotante y
+      // arrastrable (abrirVisorDocumento, línea ~9715) que ya tiene su propio botón de cerrar.
       enlace.onclick = async (ev) => {
         ev.preventDefault();
         const { data: signed, error } = await sb.storage.from('formularios-adjuntos').createSignedUrl(f.storagePath, 3600);
         if (error) { mostrarToast(`No se pudo abrir ${f.etiquetaError}: ` + error.message, false); return; }
-        window.open(signed.signedUrl, '_blank');
+        abrirVisorDocumento(signed.signedUrl, `📎 ${f.nombreArchivo || f.etiquetaError}`, _esImagenPorNombre(f.nombreArchivo || f.storagePath));
       };
       div.firstElementChild.appendChild(enlace);
     }
