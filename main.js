@@ -10937,6 +10937,14 @@ async function confirmarContratacionYEnviar(btn) {
   delete _confirmacionesContratacionArmadas[clave];
   const textoOriginal = (btn && btn.tagName) ? btn.textContent : null;
   if (btn && btn.tagName) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  // César (07/11/2026, segunda vuelta): "pulsas otra vez para enviar y no hace un carajo" seguía
+  // pasando incluso ya arreglado lo del armado — segunda causa real: enviarCorreoGenericoCandidato()
+  // comprueba el OTRO botón, el genérico "✉️ Enviar correo" de la caja de abajo (btnCandEnviarCorreo),
+  // y si ese está disabled por cualquier motivo (p. ej. quedó a medias de un envío anterior en esta
+  // misma ficha) se para en silencio, sin aviso ni error — exactamente "no hace un carajo". Este
+  // botón programático no pasa por esa caja para nada, así que antes de llamar se fuerza a que no
+  // esté bloqueado.
+  if ($('btnCandEnviarCorreo')) $('btnCandEnviarCorreo').disabled = false;
   try {
     await prepararConfirmacionContratacionCandidato(true);
     await enviarCorreoGenericoCandidato();
@@ -10986,7 +10994,7 @@ async function enviarCorreoGenericoCandidato() {
   const c = candidatosCache.find((x) => x.id === currentCandidatoId);
   if (!c) return;
   const btn = $('btnCandEnviarCorreo');
-  if (btn && btn.disabled) return;
+  if (btn && btn.disabled) { mostrarToast('⏳ Espera a que termine el envío en curso e inténtalo otra vez.', false); return; }
   // César: "no tiene por qué volver a poner el correo electrónico" — el destinatario ya viene
   // relleno desde la ficha (abrirCandidatoModal) pero es editable aquí mismo; si falta, se escribe
   // directamente en este campo en vez de cortar el envío con un aviso que no deja hacer nada.
