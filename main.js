@@ -9417,11 +9417,11 @@ function botonCrearFichaListado(c) {
   if (c.trabajador_id || c.estado === 'alta_realizada') return '';
   const listo = candidatoElegibleParaContratacion(c) && c.confirmacion_contratacion_enviada_en && c.documentacion_recibida_en && c.documentacion_enviada_gestoria_en;
   if (!listo) return '';
-  return ` <button type="button" class="btn btn-sm" style="margin-left:6px;" onclick="crearFichaDesdeListado('${c.id}')">✅ Crear ficha</button>`;
+  return ` <button type="button" class="btn btn-sm" style="margin-left:6px;" onclick="crearFichaDesdeListado('${c.id}', this)">✅ Crear ficha</button>`;
 }
-async function crearFichaDesdeListado(id) {
+async function crearFichaDesdeListado(id, btn) {
   currentCandidatoId = id;
-  await darAltaDesdeCanditado();
+  await darAltaDesdeCanditado(btn);
 }
 // César (sexta vuelta): "no se puede dar de alta si falta el DNI, si falta el certificado
 // bancario y si falta el número de seguridad social [...] esos tres documentos son los que se
@@ -9602,7 +9602,12 @@ function renderSeguimientoContactoCandidato(c) {
   }
   if ($('candLlamadaPendienteAviso')) {
     $('candLlamadaPendienteAviso').style.display = pend.pendiente ? '' : 'none';
-    $('candLlamadaPendienteAviso').textContent = pend.pendiente ? `⚠️ Llamada pendiente — ${pend.motivo}` : '';
+    // César (07/11/2026): "este aviso debería tener un botón [...] cuando hayas llamado puedas
+    // apretar como llamado y ya está" — botón de acción rápida dentro del propio aviso, para no
+    // tener que ir a buscar el control "Registrar llamada" en la fila 3 de la tabla.
+    $('candLlamadaPendienteAviso').innerHTML = pend.pendiente
+      ? `⚠️ Llamada pendiente — ${_escHtml(pend.motivo)} <button type="button" class="btn btn-sm btn-amber" style="margin-left:8px;padding:2px 8px;font-size:11px;white-space:nowrap;" onclick="marcarCandidatoLlamado()">📞 Ya he llamado</button>`
+      : '';
   }
 
   // César (06/11/2026, parte 8): "ya tenemos otros circuitos montados [...] hazlo bien" — pasos
@@ -9655,7 +9660,7 @@ function renderSeguimientoContactoCandidato(c) {
     if ($('seg6AutoCelda')) $('seg6AutoCelda').innerHTML = '<span style="color:var(--slate-400);">—</span>';
     if ($('seg6ManualCelda')) {
       $('seg6ManualCelda').innerHTML = (!altaHecha && enviadaGestoria)
-        ? '<button type="button" class="btn btn-sm" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="darAltaDesdeCanditado()">🏁 Dar de alta</button>'
+        ? '<button type="button" class="btn btn-sm" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="darAltaDesdeCanditado(this)">🏁 Dar de alta</button>'
         : (altaHecha ? '' : '<span style="color:var(--slate-400);">Esperando paso 5</span>');
     }
     if ($('seg6Detalle')) $('seg6Detalle').textContent = altaHecha ? 'Ficha creada ✓' : 'Pendiente';
@@ -11122,7 +11127,7 @@ async function enviarCorreoGenericoCandidato() {
     if (btn) { btn.disabled = false; btn.textContent = textoBtn; }
   }
 }
-async function darAltaDesdeCanditado() {
+async function darAltaDesdeCanditado(btn) {
   const c = candidatosCache.find((x) => x.id === currentCandidatoId);
   if (!c) return;
   const elegible = candidatoElegibleParaContratacion(c);
@@ -11147,124 +11152,133 @@ async function darAltaDesdeCanditado() {
     return;
   }
   if (!confirm(`¿Dar de alta a ${c.nombre} como persona trabajadora? Se creará su ficha a partir de los datos de la candidatura.`)) return;
-  const dept = CANDIDATO_DEPARTAMENTOS.find((d) => d.puestoKey === c.puesto_key);
-  // César (03/11/2026): "el código de empleado tiene que ser AAMMDD + nº de ese día, empieza en el
-  // 00" (migración 0112, generar_codigo_empleado) — se calcula ANTES del insert porque la propia
-  // fecha_primera_incorporacion que se está a punto de guardar (hoy) es la que la función usa.
-  const fechaAlta = new Date().toISOString().slice(0, 10);
-  const { data: codigoGenerado } = await sb.rpc('generar_codigo_empleado', { p_fecha: fechaAlta }).then((r) => r, () => ({ data: null }));
-  const { data: nuevo, error } = await sb
-    .from('personas_trabajadoras')
-    .insert({
-      hotel_id: usuarioActual.hotel_id,
-      codigo: codigoGenerado || null,
-      nombre: c.nombre,
-      email: c.email,
-      puesto: dept ? dept.label : c.puesto_label,
-      puesto_key: c.puesto_key,
-      departamento: dept ? dept.label.split(' (')[0] : null,
-      estado_laboral: 'Activo',
-      fecha_incorporacion: fechaAlta,
-      fecha_primera_incorporacion: fechaAlta,
-      dni_nie: c.dni_nie || null,
-      direccion: c.direccion || null,
-      seguridad_social: c.numero_seguridad_social || null
-    })
-    .select()
-    .single();
-  if (error) {
-    mostrarToast('Error al dar de alta: ' + error.message, false);
-    return;
-  }
-  await sb.from('candidatos').update({ estado: 'alta_realizada', trabajador_id: nuevo.id }).eq('id', currentCandidatoId);
-  // César: "este documento debería ser parte de la ficha del trabajador" — el consentimiento RGPD
-  // que firmó como candidato/a se traslada a su ficha de documentos al darle de alta, para que
-  // quede junto al resto de su expediente (y protegido por el mismo bloqueo de borrado de la
-  // migración 0090, al ser ya un registro de "documentos").
-  if (c.consentimiento_rgpd_texto || c.consentimiento_rgpd_en) {
-    await sb.from('documentos').insert({
-      hotel_id: usuarioActual.hotel_id,
-      trabajador_id: nuevo.id,
-      tipo: 'consentimiento_rgpd_candidatura',
-      nombre: 'Consentimiento RGPD — proceso de selección',
-      meta: JSON.stringify({
-        origen: c.origen,
-        aceptado_en: c.consentimiento_rgpd_en,
-        version_clausula: c.consentimiento_rgpd_version,
-        bolsa_empleo: c.consentimiento_bolsa_empleo,
-        texto: c.consentimiento_rgpd_texto
-      }),
-      fecha: (c.consentimiento_rgpd_en || new Date().toISOString()).slice(0, 10)
-    });
-  }
-  // César: "darle la posibilidad de adjuntar un cv [...] debería ser parte de la ficha del
-  // trabajador" — igual que el consentimiento RGPD, el CV adjuntado durante la candidatura se
-  // traslada a Mis Documentos de la nueva ficha.
-  if (c.cv_adjunto_url) {
-    await sb.from('documentos').insert({
-      hotel_id: usuarioActual.hotel_id,
-      trabajador_id: nuevo.id,
-      tipo: 'cv',
-      nombre: `CV — ${c.cv_nombre_archivo || 'candidatura'}`,
-      meta: 'Adjuntado durante el proceso de selección',
-      adjunto_url: c.cv_adjunto_url
-    });
-  }
-  // César (02/11/2026): "toda la información relevante, correspondiente y archivos de este
-  // empleado se tienen que volcar en su ficha de manera automática" — el DNI/NIE y el certificado
-  // bancario solicitados en el correo de confirmación (si ya se habían registrado en la
-  // candidatura) se trasladan igual que el CV, para no tener que volver a pedirlos ni adjuntarlos
-  // a mano una segunda vez.
-  if (c.dni_nie_adjunto_url) {
-    await sb.from('documentos').insert({
-      hotel_id: usuarioActual.hotel_id,
-      trabajador_id: nuevo.id,
-      tipo: 'dni_nie',
-      nombre: `DNI/NIE — ${c.dni_nie_adjunto_nombre || 'candidatura'}`,
-      meta: 'Adjuntado durante el proceso de selección',
-      adjunto_url: c.dni_nie_adjunto_url
-    });
-  }
-  if (c.certificado_bancario_adjunto_url) {
-    await sb.from('documentos').insert({
-      hotel_id: usuarioActual.hotel_id,
-      trabajador_id: nuevo.id,
-      tipo: 'certificado_bancario',
-      nombre: `Certificado bancario — ${c.certificado_bancario_adjunto_nombre || 'candidatura'}`,
-      meta: 'Adjuntado durante el proceso de selección',
-      adjunto_url: c.certificado_bancario_adjunto_url
-    });
-  }
-  // César: "necesito que el director de RR.HH. sepa [...] cómo han hecho las entrevistas, cuáles
-  // han sido los resultados [...] cómo han llegado a la conclusión de contratar a las personas" —
-  // el desglose completo de los 104 criterios se guarda como documento legible de la nueva ficha,
-  // para no perder el rastro de cómo se decidió la contratación una vez cerrada la candidatura.
-  if (c.entrevista_respuestas) {
-    await sb.from('documentos').insert({
-      hotel_id: usuarioActual.hotel_id,
-      trabajador_id: nuevo.id,
-      tipo: 'entrevista_estructurada',
-      nombre: `Entrevista estructurada — resultado ${c.puntuacion_adaptacion ?? '—'}% (${c.resultado_entrevista_categoria || categoriaResultadoEntrevista(c.puntuacion_adaptacion, umbralAdaptacionCandidatoCache) || '—'})`,
-      meta: _resumenEntrevistaEstructuradaTexto(c),
-      fecha: (c.entrevista_evaluado_en || new Date().toISOString()).slice(0, 10)
-    });
-  }
-  mostrarToast(`${c.nombre} dado de alta ✓ — expediente completo trasladado a su ficha.`, true);
-  cerrarCandidatoModal();
-  await Promise.all([cargarCandidatosAdmin(), cargarEmpleados()]);
-  await registrarAuditoria('Candidaturas', 'Alta automática de ficha', c.nombre);
-  // César (03/11/2026, B: "automatizar con Edge Function"): hasta ahora, crear el acceso
-  // (usuario/clave) de la persona trabajadora nueva era un paso manual en el Dashboard de Supabase
-  // — ya no. crear-cuenta-trabajador() crea la cuenta, la enlaza a esta ficha, prepara el
-  // consentimiento inicial (se firma en el primer acceso con firmar_documento(), migración 0074) y
-  // encola el correo de bienvenida con la clave provisional. Si falla, la ficha YA está creada y
-  // completa — esto es un paso adicional, nunca bloquea el alta en sí (igual que el envío a Mis
-  // Documentos del evaluador, migración 0089).
-  const { error: errorCuenta } = await sb.functions.invoke('crear-cuenta-trabajador', { body: { trabajador_id: nuevo.id } });
-  if (errorCuenta) {
-    mostrarToast(`⚠️ Ficha creada, pero no se pudo crear el acceso automáticamente: ${errorCuenta.message || errorCuenta}. Créalo a mano desde Supabase → Authentication y enlaza el user_id en la ficha.`, false);
-  } else {
-    mostrarToast('Acceso creado ✓ Correo de bienvenida con la clave en camino.', true);
+  if (btn && btn.disabled) return;
+  const textoBtnOriginal = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Dando de alta…'; }
+  try {
+    const dept = CANDIDATO_DEPARTAMENTOS.find((d) => d.puestoKey === c.puesto_key);
+    // César (03/11/2026): "el código de empleado tiene que ser AAMMDD + nº de ese día, empieza en el
+    // 00" (migración 0112, generar_codigo_empleado) — se calcula ANTES del insert porque la propia
+    // fecha_primera_incorporacion que se está a punto de guardar (hoy) es la que la función usa.
+    const fechaAlta = new Date().toISOString().slice(0, 10);
+    const { data: codigoGenerado } = await sb.rpc('generar_codigo_empleado', { p_fecha: fechaAlta }).then((r) => r, () => ({ data: null }));
+    const { data: nuevo, error } = await sb
+      .from('personas_trabajadoras')
+      .insert({
+        hotel_id: usuarioActual.hotel_id,
+        codigo: codigoGenerado || null,
+        nombre: c.nombre,
+        email: c.email,
+        puesto: dept ? dept.label : c.puesto_label,
+        puesto_key: c.puesto_key,
+        departamento: dept ? dept.label.split(' (')[0] : null,
+        estado_laboral: 'Activo',
+        fecha_incorporacion: fechaAlta,
+        fecha_primera_incorporacion: fechaAlta,
+        dni_nie: c.dni_nie || null,
+        direccion: c.direccion || null,
+        seguridad_social: c.numero_seguridad_social || null
+      })
+      .select()
+      .single();
+    if (error) {
+      mostrarToast('Error al dar de alta: ' + error.message, false);
+      return;
+    }
+    await sb.from('candidatos').update({ estado: 'alta_realizada', trabajador_id: nuevo.id }).eq('id', currentCandidatoId);
+    // César: "este documento debería ser parte de la ficha del trabajador" — el consentimiento RGPD
+    // que firmó como candidato/a se traslada a su ficha de documentos al darle de alta, para que
+    // quede junto al resto de su expediente (y protegido por el mismo bloqueo de borrado de la
+    // migración 0090, al ser ya un registro de "documentos").
+    if (c.consentimiento_rgpd_texto || c.consentimiento_rgpd_en) {
+      await sb.from('documentos').insert({
+        hotel_id: usuarioActual.hotel_id,
+        trabajador_id: nuevo.id,
+        tipo: 'consentimiento_rgpd_candidatura',
+        nombre: 'Consentimiento RGPD — proceso de selección',
+        meta: JSON.stringify({
+          origen: c.origen,
+          aceptado_en: c.consentimiento_rgpd_en,
+          version_clausula: c.consentimiento_rgpd_version,
+          bolsa_empleo: c.consentimiento_bolsa_empleo,
+          texto: c.consentimiento_rgpd_texto
+        }),
+        fecha: (c.consentimiento_rgpd_en || new Date().toISOString()).slice(0, 10)
+      });
+    }
+    // César: "darle la posibilidad de adjuntar un cv [...] debería ser parte de la ficha del
+    // trabajador" — igual que el consentimiento RGPD, el CV adjuntado durante la candidatura se
+    // traslada a Mis Documentos de la nueva ficha.
+    if (c.cv_adjunto_url) {
+      await sb.from('documentos').insert({
+        hotel_id: usuarioActual.hotel_id,
+        trabajador_id: nuevo.id,
+        tipo: 'cv',
+        nombre: `CV — ${c.cv_nombre_archivo || 'candidatura'}`,
+        meta: 'Adjuntado durante el proceso de selección',
+        adjunto_url: c.cv_adjunto_url
+      });
+    }
+    // César (02/11/2026): "toda la información relevante, correspondiente y archivos de este
+    // empleado se tienen que volcar en su ficha de manera automática" — el DNI/NIE y el certificado
+    // bancario solicitados en el correo de confirmación (si ya se habían registrado en la
+    // candidatura) se trasladan igual que el CV, para no tener que volver a pedirlos ni adjuntarlos
+    // a mano una segunda vez.
+    if (c.dni_nie_adjunto_url) {
+      await sb.from('documentos').insert({
+        hotel_id: usuarioActual.hotel_id,
+        trabajador_id: nuevo.id,
+        tipo: 'dni_nie',
+        nombre: `DNI/NIE — ${c.dni_nie_adjunto_nombre || 'candidatura'}`,
+        meta: 'Adjuntado durante el proceso de selección',
+        adjunto_url: c.dni_nie_adjunto_url
+      });
+    }
+    if (c.certificado_bancario_adjunto_url) {
+      await sb.from('documentos').insert({
+        hotel_id: usuarioActual.hotel_id,
+        trabajador_id: nuevo.id,
+        tipo: 'certificado_bancario',
+        nombre: `Certificado bancario — ${c.certificado_bancario_adjunto_nombre || 'candidatura'}`,
+        meta: 'Adjuntado durante el proceso de selección',
+        adjunto_url: c.certificado_bancario_adjunto_url
+      });
+    }
+    // César: "necesito que el director de RR.HH. sepa [...] cómo han hecho las entrevistas, cuáles
+    // han sido los resultados [...] cómo han llegado a la conclusión de contratar a las personas" —
+    // el desglose completo de los 104 criterios se guarda como documento legible de la nueva ficha,
+    // para no perder el rastro de cómo se decidió la contratación una vez cerrada la candidatura.
+    if (c.entrevista_respuestas) {
+      await sb.from('documentos').insert({
+        hotel_id: usuarioActual.hotel_id,
+        trabajador_id: nuevo.id,
+        tipo: 'entrevista_estructurada',
+        nombre: `Entrevista estructurada — resultado ${c.puntuacion_adaptacion ?? '—'}% (${c.resultado_entrevista_categoria || categoriaResultadoEntrevista(c.puntuacion_adaptacion, umbralAdaptacionCandidatoCache) || '—'})`,
+        meta: _resumenEntrevistaEstructuradaTexto(c),
+        fecha: (c.entrevista_evaluado_en || new Date().toISOString()).slice(0, 10)
+      });
+    }
+    mostrarToast(`${c.nombre} dado de alta ✓ — expediente completo trasladado a su ficha.`, true);
+    cerrarCandidatoModal();
+    await Promise.all([cargarCandidatosAdmin(), cargarEmpleados()]);
+    await registrarAuditoria('Candidaturas', 'Alta automática de ficha', c.nombre);
+    // César (03/11/2026, B: "automatizar con Edge Function"): hasta ahora, crear el acceso
+    // (usuario/clave) de la persona trabajadora nueva era un paso manual en el Dashboard de Supabase
+    // — ya no. crear-cuenta-trabajador() crea la cuenta, la enlaza a esta ficha, prepara el
+    // consentimiento inicial (se firma en el primer acceso con firmar_documento(), migración 0074) y
+    // encola el correo de bienvenida con la clave provisional. Si falla, la ficha YA está creada y
+    // completa — esto es un paso adicional, nunca bloquea el alta en sí (igual que el envío a Mis
+    // Documentos del evaluador, migración 0089).
+    const { error: errorCuenta } = await sb.functions.invoke('crear-cuenta-trabajador', { body: { trabajador_id: nuevo.id } });
+    if (errorCuenta) {
+      mostrarToast(`⚠️ Ficha creada, pero no se pudo crear el acceso automáticamente: ${errorCuenta.message || errorCuenta}. Créalo a mano desde Supabase → Authentication y enlaza el user_id en la ficha.`, false);
+    } else {
+      mostrarToast('Acceso creado ✓ Correo de bienvenida con la clave en camino.', true);
+    }
+  } catch (e) {
+    mostrarToast('❌ Error inesperado al dar de alta: ' + (e && e.message ? e.message : e), false);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = textoBtnOriginal; }
   }
 }
 // Texto legible (no JSON) del resultado de la Entrevista Estructurada, para el documento que se
