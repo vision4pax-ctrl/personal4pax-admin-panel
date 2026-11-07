@@ -10270,7 +10270,7 @@ async function subirDniNieCandidato() {
   // públicas del candidato (0110) — así que "documentacion_recibida_en" y el Correo 4 a RR.HH.
   // nunca se disparaban si los 3 datos se registraban a mano. Se llama aquí también, ahora que
   // 0111 le da permiso de ejecución al rol authenticated.
-  await sb.rpc('_completar_documentacion_candidato_si_procede', { p_id: currentCandidatoId }).catch(() => {});
+  await sb.rpc('_completar_documentacion_candidato_si_procede', { p_id: currentCandidatoId }).then(() => {}, () => {});
   await cargarCandidatosAdmin();
   abrirCandidatoModal(currentCandidatoId);
   _dispararExtraccionOcrCandidato(currentCandidatoId, 'dni_nie'); // en segundo plano, ver comentario arriba
@@ -10286,7 +10286,7 @@ async function subirCertificadoBancarioCandidato() {
   mostrarToast('Certificado bancario adjuntado ✓', true);
   await registrarAuditoria('Candidaturas', 'Certificado bancario adjuntado', archivo.name);
   // Mismo motivo que en subirDniNieCandidato — ver comentario allí.
-  await sb.rpc('_completar_documentacion_candidato_si_procede', { p_id: currentCandidatoId }).catch(() => {});
+  await sb.rpc('_completar_documentacion_candidato_si_procede', { p_id: currentCandidatoId }).then(() => {}, () => {});
   await cargarCandidatosAdmin();
   abrirCandidatoModal(currentCandidatoId);
   _dispararExtraccionOcrCandidato(currentCandidatoId, 'certificado_bancario'); // en segundo plano, ver comentario en subirDniNieCandidato
@@ -10432,7 +10432,7 @@ async function guardarCandidato(e) {
     // Mismo motivo que en subirDniNieCandidato — si el número de Seguridad Social se escribe aquí
     // (RR.HH., a mano) en vez de desde el portal del candidato, también debe poder completar la
     // documentación si ya estaban los otros 2 datos.
-    await sb.rpc('_completar_documentacion_candidato_si_procede', { p_id: currentCandidatoId }).catch(() => {});
+    await sb.rpc('_completar_documentacion_candidato_si_procede', { p_id: currentCandidatoId }).then(() => {}, () => {});
     cerrarCandidatoModal();
     await cargarCandidatosAdmin();
     await registrarAuditoria('Candidaturas', 'Actualización', `${c ? c.nombre : ''} → ${CANDIDATO_ESTADOS[payload.estado][0]}`);
