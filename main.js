@@ -10922,7 +10922,12 @@ function _confirmacionContratacionArmada(clave) {
   return false;
 }
 function _armarConfirmacionContratacion(clave) {
-  _confirmacionesContratacionArmadas[clave] = Date.now() + 6000;
+  // César (07/11/2026, tercera vuelta): "llevo una hora con este botón" — con 6 segundos de
+  // ventana, si pasaban más de 6s entre el primer y el segundo clic (lo normal: leer el aviso,
+  // dudar, volver a mirar la pantalla), el "armado" caducaba solo y el segundo clic se trataba
+  // otra vez como un primer clic — mismo texto de botón, mismo aviso, así que parecía que no
+  // pasaba nada en absoluto. Se amplía a 30 segundos, tiempo de sobra para un segundo clic real.
+  _confirmacionesContratacionArmadas[clave] = Date.now() + 30000;
 }
 async function confirmarContratacionYEnviar(btn) {
   const c = candidatosCache.find((x) => x.id === currentCandidatoId);
@@ -10954,6 +10959,13 @@ async function confirmarContratacionYEnviar(btn) {
     } else {
       mostrarToast(`❌ El correo NO se ha enviado — revisa el aviso rojo para ver el motivo exacto.`, false);
     }
+  } catch (err) {
+    // César (07/11/2026, tercera vuelta): "llevo una hora con este botón" — hasta ahora, si algo
+    // dentro de este intento fallaba de forma inesperada (un error de JavaScript, no un error de
+    // Supabase), no había ningún catch aquí: el error se perdía sin avisar nada en pantalla, el
+    // botón volvía a su sitio por el finally de abajo y parecía que "no hace un carajo". Ahora,
+    // cualquier fallo inesperado se ve en un aviso rojo en vez de desaparecer en silencio.
+    mostrarToast(`❌ Error inesperado al enviar: ${err && err.message ? err.message : err}`, false);
   } finally {
     if (btn && btn.tagName) { btn.disabled = false; btn.textContent = textoOriginal; }
   }
