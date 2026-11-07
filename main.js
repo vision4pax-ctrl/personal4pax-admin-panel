@@ -10907,64 +10907,30 @@ async function prepararConfirmacionContratacionCandidato(silencioso) {
 // un aviso propio de la página y no puede ser silenciado por el navegador. Para no perder la
 // confirmación antes de mandar un correo real, el primer clic deja el botón en modo "¿Seguro?" y
 // solo al segundo clic (en los 6 segundos siguientes) se envía.
-// César (07/11/2026): "pulsas otra vez para enviar y no hace un carajo" — causa real: el "armado"
-// (primer clic ya hecho, a la espera del segundo) se guardaba en el dataset del propio botón del
-// DOM, pero esa fila se repinta sola en cuanto termina de cargar el historial de correos nada más
-// abrir la ficha (cargarHistorialCorreosCandidato → renderSeguimientoContactoCandidato, de forma
-// asíncrona) — eso sustituye el botón por uno nuevo y borra el armado antes de que dé tiempo al
-// segundo clic, así que el segundo clic se trataba otra vez como un primer clic (vuelve a salir el
-// aviso, nunca llega a enviar). Se guarda el armado aparte, por candidato, no en el botón.
-const _confirmacionesContratacionArmadas = {}; // { [candidatoId + ':' + accion]: expiraEnMs }
-function _confirmacionContratacionArmada(clave) {
-  const exp = _confirmacionesContratacionArmadas[clave];
-  if (exp && exp > Date.now()) return true;
-  delete _confirmacionesContratacionArmadas[clave];
-  return false;
-}
-function _armarConfirmacionContratacion(clave) {
-  // César (07/11/2026, tercera vuelta): "llevo una hora con este botón" — con 6 segundos de
-  // ventana, si pasaban más de 6s entre el primer y el segundo clic (lo normal: leer el aviso,
-  // dudar, volver a mirar la pantalla), el "armado" caducaba solo y el segundo clic se trataba
-  // otra vez como un primer clic — mismo texto de botón, mismo aviso, así que parecía que no
-  // pasaba nada en absoluto. Se amplía a 30 segundos, tiempo de sobra para un segundo clic real.
-  _confirmacionesContratacionArmadas[clave] = Date.now() + 30000;
-}
+// César (07/11/2026, cuarta vuelta): "no quiero un puto aviso [...] quiero apretar el botón,
+// enviarlo y ya está" — se quita del todo la confirmación en 2 clics (fue la fuente de todos los
+// fallos de las vueltas anteriores: armado guardado en el botón, repintado que lo borraba, ventana
+// de 6s demasiado corta…). Ahora un único clic envía directamente. Si algo falla de verdad (sin
+// conexión, error de Supabase, lo que sea), SÍ se ve un aviso rojo explicando el motivo — pero ya
+// no hay ningún paso intermedio de "¿Seguro?".
 async function confirmarContratacionYEnviar(btn) {
   const c = candidatosCache.find((x) => x.id === currentCandidatoId);
   if (!c) return;
-  const clave = c.id + ':enviar';
-  if (!_confirmacionContratacionArmada(clave)) {
-    _armarConfirmacionContratacion(clave);
-    if (btn && btn.tagName) btn.textContent = '¿Seguro? Pulsa otra vez para enviar';
-    mostrarToast(`Vuelve a pulsar para enviar a ${c.nombre} el correo de confirmación de contratación y solicitud de documentación.`);
-    return;
-  }
-  delete _confirmacionesContratacionArmadas[clave];
   const textoOriginal = (btn && btn.tagName) ? btn.textContent : null;
   if (btn && btn.tagName) { btn.disabled = true; btn.textContent = 'Enviando…'; }
-  // César (07/11/2026, segunda vuelta): "pulsas otra vez para enviar y no hace un carajo" seguía
-  // pasando incluso ya arreglado lo del armado — segunda causa real: enviarCorreoGenericoCandidato()
-  // comprueba el OTRO botón, el genérico "✉️ Enviar correo" de la caja de abajo (btnCandEnviarCorreo),
-  // y si ese está disabled por cualquier motivo (p. ej. quedó a medias de un envío anterior en esta
-  // misma ficha) se para en silencio, sin aviso ni error — exactamente "no hace un carajo". Este
-  // botón programático no pasa por esa caja para nada, así que antes de llamar se fuerza a que no
-  // esté bloqueado.
+  // César (07/11/2026, segunda vuelta): enviarCorreoGenericoCandidato() comprueba el OTRO botón, el
+  // genérico "✉️ Enviar correo" de la caja de abajo (btnCandEnviarCorreo) — si ese está disabled por
+  // cualquier motivo, se paraba en silencio. Este botón no pasa por esa caja, así que se fuerza a
+  // que no esté bloqueado antes de llamar.
   if ($('btnCandEnviarCorreo')) $('btnCandEnviarCorreo').disabled = false;
   try {
     await prepararConfirmacionContratacionCandidato(true);
     await enviarCorreoGenericoCandidato();
     const actualizado = candidatosCache.find((x) => x.id === c.id);
-    if (actualizado && actualizado.confirmacion_contratacion_enviada_en) {
-      mostrarToast(`✅ Correo enviado a ${c.nombre}. Ya aparece en el historial de correos. Siguiente paso: en cuanto suba los 3 documentos, podrás enviarlos a gestoría.`);
-    } else {
+    if (!actualizado || !actualizado.confirmacion_contratacion_enviada_en) {
       mostrarToast(`❌ El correo NO se ha enviado — revisa el aviso rojo para ver el motivo exacto.`, false);
     }
   } catch (err) {
-    // César (07/11/2026, tercera vuelta): "llevo una hora con este botón" — hasta ahora, si algo
-    // dentro de este intento fallaba de forma inesperada (un error de JavaScript, no un error de
-    // Supabase), no había ningún catch aquí: el error se perdía sin avisar nada en pantalla, el
-    // botón volvía a su sitio por el finally de abajo y parecía que "no hace un carajo". Ahora,
-    // cualquier fallo inesperado se ve en un aviso rojo en vez de desaparecer en silencio.
     mostrarToast(`❌ Error inesperado al enviar: ${err && err.message ? err.message : err}`, false);
   } finally {
     if (btn && btn.tagName) { btn.disabled = false; btn.textContent = textoOriginal; }
@@ -10978,14 +10944,6 @@ async function confirmarContratacionYEnviar(btn) {
 async function marcarConfirmacionContratacionSinCorreo(btn) {
   const c = candidatosCache.find((x) => x.id === currentCandidatoId);
   if (!c) return;
-  const clave = c.id + ':marcar';
-  if (!_confirmacionContratacionArmada(clave)) {
-    _armarConfirmacionContratacion(clave);
-    if (btn && btn.tagName) btn.textContent = '¿Seguro? Pulsa otra vez para marcar';
-    mostrarToast(`Vuelve a pulsar para marcar el paso 4 de ${c.nombre} como hecho SIN enviar correo.`);
-    return;
-  }
-  delete _confirmacionesContratacionArmadas[clave];
   const textoOriginal = (btn && btn.tagName) ? btn.textContent : null;
   if (btn && btn.tagName) { btn.disabled = true; btn.textContent = 'Marcando…'; }
   try {
@@ -10998,6 +10956,8 @@ async function marcarConfirmacionContratacionSinCorreo(btn) {
     await cargarCandidatosAdmin();
     abrirCandidatoModal(c.id);
     mostrarToast(`✅ Paso 4 marcado para ${c.nombre} — ya puedes enviar la documentación a gestoría (paso 5).`);
+  } catch (err) {
+    mostrarToast(`❌ Error inesperado al marcar: ${err && err.message ? err.message : err}`, false);
   } finally {
     if (btn && btn.tagName) { btn.disabled = false; btn.textContent = textoOriginal; }
   }
