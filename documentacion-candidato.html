@@ -266,7 +266,7 @@
       $('estadoCarga').classList.add('hidden');
       $('bloqueContenido').classList.remove('hidden');
 
-      const { data: clausula } = await sb.rpc('_texto_clausula_rgpd_documentacion_incorporacion').catch(() => ({ data: null }));
+      const { data: clausula } = await sb.rpc('_texto_clausula_rgpd_documentacion_incorporacion').then((r) => r, () => ({ data: null }));
       $('dcPrivacidad').textContent = clausula || CLAUSULA_RGPD_RESPALDO;
     } catch (e) {
       mostrarError();
