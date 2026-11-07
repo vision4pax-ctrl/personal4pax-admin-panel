@@ -10707,8 +10707,16 @@ function _renderDocsPanelGestoria(c) {
   });
   const avisoIban = $('candGestoriaAvisoIban');
   if (avisoIban) {
+    // César (07/11/2026): "ya está marcada la casilla... pero sale este aviso" — el aviso comparaba
+    // solo contra c.iban_confirmado_en (lo ya guardado en servidor), así que si acabas de marcar la
+    // casilla en la ficha pero no has pulsado "Guardar" todavía, seguía saliendo el aviso de "sin
+    // confirmar" aunque se vea marcada. Se distingue ahora ese caso del de "aún sin marcar".
+    const marcadoSinGuardar = !c.iban_confirmado_en && $('candIbanConfirmado') && $('candIbanConfirmado').checked;
     if (!c.iban) {
       avisoIban.textContent = '⚠️ Esta persona no tiene IBAN registrado en la ficha — ábrela, revisa el certificado bancario y transcríbelo antes de enviar si quieres incluirlo.';
+      avisoIban.style.display = '';
+    } else if (marcadoSinGuardar) {
+      avisoIban.textContent = '⚠️ Has marcado la confirmación del IBAN pero todavía no has guardado la ficha — pulsa "💾 Guardar" en la ficha y vuelve a abrir este envío.';
       avisoIban.style.display = '';
     } else if (!c.iban_confirmado_en) {
       avisoIban.textContent = '⚠️ El IBAN está escrito pero sin confirmar en la ficha — marca la casilla de confirmación antes de enviar.';
@@ -10730,8 +10738,14 @@ function abrirEnviarDocumentacionGestoriaModal() {
   });
   _renderDocsPanelGestoria(c);
   $('candGestoriaAsunto').value = `Documentación de incorporación — ${c.nombre}`;
-  const ibanLinea = c.iban ? `Número de cuenta (IBAN): ${c.iban}${c.iban_confirmado_en ? ' — confirmado, coincide con el titular' : ' — ⚠️ sin confirmar en la ficha, verifícalo antes de usarlo'}\n` : '';
-  $('candGestoriaCuerpo').value = `Buenos días,\n\nOs remitimos la documentación de incorporación de ${c.nombre} (${c.puesto_label || '—'}) para tramitar su alta:\n\nDNI/NIE: ${c.dni_nie || '—'}\nNúmero de afiliación a la Seguridad Social: ${c.numero_seguridad_social || '—'}\n${ibanLinea}\nUn saludo,\nDepartamento de RR.HH.`;
+  const ibanMarcadoSinGuardar = !c.iban_confirmado_en && $('candIbanConfirmado') && $('candIbanConfirmado').checked;
+  const ibanConfirmadoEfectivo = !!(c.iban_confirmado_en || ibanMarcadoSinGuardar);
+  const ibanLinea = c.iban ? `Número de cuenta (IBAN): ${c.iban}${ibanConfirmadoEfectivo ? ' — confirmado, coincide con el titular' : ' — ⚠️ sin confirmar en la ficha, verifícalo antes de usarlo'}\n` : '';
+  // César (07/11/2026): "en el correo para la gestoría debes indicar 'Tipo de contrato:' y RRHH
+  // deberá apuntar qué tipo de contrato hay que hacer" — no se infiere solo (no hay dato en la ficha
+  // para ello); se deja la etiqueta en blanco en el cuerpo editable para que RR.HH. lo rellene antes
+  // de enviar, igual que ya hace con destinatario/asunto si faltan.
+  $('candGestoriaCuerpo').value = `Buenos días,\n\nOs remitimos la documentación de incorporación de ${c.nombre} (${c.puesto_label || '—'}) para tramitar su alta:\n\nDNI/NIE: ${c.dni_nie || '—'}\nNúmero de afiliación a la Seguridad Social: ${c.numero_seguridad_social || '—'}\n${ibanLinea}Tipo de contrato: \n\nUn saludo,\nDepartamento de RR.HH.`;
   $('modalEnviarDocumentacionGestoria').classList.remove('hidden');
 }
 function cerrarEnviarDocumentacionGestoriaModal() {
