@@ -9606,7 +9606,7 @@ function renderSeguimientoContactoCandidato(c) {
     // apretar como llamado y ya está" — botón de acción rápida dentro del propio aviso, para no
     // tener que ir a buscar el control "Registrar llamada" en la fila 3 de la tabla.
     $('candLlamadaPendienteAviso').innerHTML = pend.pendiente
-      ? `⚠️ Llamada pendiente — ${_escHtml(pend.motivo)} <button type="button" class="btn btn-sm btn-amber" style="margin-left:8px;padding:2px 8px;font-size:11px;white-space:nowrap;" onclick="marcarCandidatoLlamado()">📞 Ya he llamado</button>`
+      ? `⚠️ Llamada pendiente — ${_escHtml(pend.motivo)} <button type="button" class="btn btn-sm btn-amber" style="margin-left:8px;padding:2px 8px;font-size:11px;white-space:nowrap;" onclick="marcarCandidatoLlamado(this)">📞 Ya he llamado</button>`
       : '';
   }
 
@@ -10526,11 +10526,26 @@ async function subirCvCandidato() {
 // timestamp, que cada llamada sobrescribía) no permitía saber si se había llamado 1 o 5 veces;
 // ahora se añade a contacto_llamadas (historial completo, jsonb) y contacto_llamado_en se sigue
 // guardando igual (como "última llamada") por compatibilidad con el resto de la app.
-async function marcarCandidatoLlamado() {
+async function marcarCandidatoLlamado(btn) {
   if (!currentCandidatoId) return;
   const c = candidatosCache.find((x) => x.id === currentCandidatoId);
   if (!c) return;
-  if (!confirm('¿Registrar una llamada telefónica a esta candidatura ahora?')) return;
+  // César (07/11/2026, mismo bloqueo que el paso 4 y "Dar de alta"): confirm() nativo bloqueado por
+  // Chrome tras uso repetido en la misma pestaña — confirmación con un segundo clic sobre el propio
+  // botón, igual que confirmarContratacionYEnviar()/darAltaDesdeCanditado().
+  if (btn && btn.dataset.confirmando !== '1') {
+    const textoOriginal = btn.textContent;
+    btn._textoOriginal = textoOriginal;
+    btn.dataset.confirmando = '1';
+    btn.textContent = '¿Seguro? Pulsa otra vez';
+    mostrarToast('Vuelve a pulsar para registrar la llamada.');
+    clearTimeout(btn._confirmTimeout);
+    btn._confirmTimeout = setTimeout(() => {
+      if (btn.dataset.confirmando === '1') { btn.dataset.confirmando = '0'; btn.textContent = textoOriginal; }
+    }, 6000);
+    return;
+  }
+  if (btn) { clearTimeout(btn._confirmTimeout); btn.dataset.confirmando = '0'; }
   const ahora = new Date().toISOString();
   const llamadas = [...(Array.isArray(c.contacto_llamadas) ? c.contacto_llamadas : (c.contacto_llamado_en ? [c.contacto_llamado_en] : [])), ahora];
   const { error } = await sb.from('candidatos').update({ contacto_llamado_en: ahora, contacto_llamadas: llamadas }).eq('id', currentCandidatoId);
@@ -11151,10 +11166,28 @@ async function darAltaDesdeCanditado(btn) {
     mostrarToast('⚠️ Antes de dar de alta hay que enviar la documentación a gestoría («📤 Enviar documentación a gestoría»).', false);
     return;
   }
-  if (!confirm(`¿Dar de alta a ${c.nombre} como persona trabajadora? Se creará su ficha a partir de los datos de la candidatura.`)) return;
+  // César (07/11/2026, mismo bloqueo ya resuelto en el paso 4 — commit "Quitar confirm()/alert()
+  // nativos del paso 4 de contratación"): tras muchas pruebas seguidas en la misma pestaña, Chrome
+  // bloquea en silencio los confirm()/alert() de la página; un confirm() bloqueado devuelve false
+  // al instante sin mostrar nada, y la función se paraba justo aquí — exactamente el síntoma
+  // reportado ("le doy al botón y no funciona"). Confirmación con un segundo clic sobre el propio
+  // botón (mostrarToast(), que no puede ser silenciado por el navegador), igual que
+  // confirmarContratacionYEnviar()/marcarConfirmacionContratacionSinCorreo().
+  if (btn && btn.dataset.confirmando !== '1') {
+    const textoOriginal = btn.textContent;
+    btn._textoOriginal = textoOriginal;
+    btn.dataset.confirmando = '1';
+    btn.textContent = '¿Seguro? Pulsa otra vez';
+    mostrarToast(`Vuelve a pulsar para dar de alta a ${c.nombre} como persona trabajadora.`);
+    clearTimeout(btn._confirmTimeout);
+    btn._confirmTimeout = setTimeout(() => {
+      if (btn.dataset.confirmando === '1') { btn.dataset.confirmando = '0'; btn.textContent = textoOriginal; }
+    }, 6000);
+    return;
+  }
   if (btn && btn.disabled) return;
-  const textoBtnOriginal = btn ? btn.textContent : null;
-  if (btn) { btn.disabled = true; btn.textContent = 'Dando de alta…'; }
+  const textoBtnOriginal = btn ? (btn._textoOriginal || btn.textContent) : null;
+  if (btn) { clearTimeout(btn._confirmTimeout); btn.dataset.confirmando = '0'; btn.disabled = true; btn.textContent = 'Dando de alta…'; }
   try {
     const dept = CANDIDATO_DEPARTAMENTOS.find((d) => d.puestoKey === c.puesto_key);
     // César (03/11/2026): "el código de empleado tiene que ser AAMMDD + nº de ese día, empieza en el
@@ -14467,7 +14500,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('btnCerrarExpedienteCandidato').addEventListener('click', cerrarExpedienteCompletoCandidato);
   if ($('btnCopiarEnlaceDocumentacion')) $('btnCopiarEnlaceDocumentacion').addEventListener('click', copiarEnlaceDocumentacionCandidato);
   if ($('btnGuardarEstadoCandidato')) $('btnGuardarEstadoCandidato').addEventListener('click', guardarEstadoCandidato);
-  $('btnCandMarcarLlamado').addEventListener('click', marcarCandidatoLlamado);
+  $('btnCandMarcarLlamado').addEventListener('click', (e) => marcarCandidatoLlamado(e.currentTarget));
   $('btnCandMarcarFormularioEnviado').addEventListener('click', marcarFormularioEntrevistaEnviado);
   $('btnCandPlantillaCorreo').addEventListener('click', rellenarPlantillaCorreoCandidato);
   $('btnCandEnviarCorreo').addEventListener('click', enviarCorreoGenericoCandidato);
