@@ -8644,6 +8644,15 @@ const CANDIDATO_DEPARTAMENTOS = [
   { puestoKey: 'reformas', label: 'Obra / Reformas (Oficial, Peón)' },
   { puestoKey: 'administracion', label: 'Administración, RR.HH., Facturación y Compras' }
 ];
+// César (07/11/2026): para el correo a gestoría, "Sala (Alimentos y Bebidas)" se escribe como
+// "Alimentos y Bebidas, Sala" — área primero, sin paréntesis (dato relevante, no una aclaración
+// entre paréntesis). Si el label no tiene ese formato "Puesto (Área)" (p. ej. "Mantenimiento"), se
+// deja tal cual.
+function _departamentoParaCorreoGestoria(label) {
+  if (!label) return '—';
+  const m = /^(.*?)\s*\((.*)\)\s*$/.exec(label.trim());
+  return m ? `${m[2]}, ${m[1]}` : label;
+}
 const CANDIDATO_ESTADOS = {
   recibida: ['📥 Recibida', 'b-amber'],
   formulario_enviado: ['✉️ Formulario Fase 1 enviado', 'b-amber'],
@@ -10741,11 +10750,33 @@ function abrirEnviarDocumentacionGestoriaModal() {
   const ibanMarcadoSinGuardar = !c.iban_confirmado_en && $('candIbanConfirmado') && $('candIbanConfirmado').checked;
   const ibanConfirmadoEfectivo = !!(c.iban_confirmado_en || ibanMarcadoSinGuardar);
   const ibanLinea = c.iban ? `Número de cuenta (IBAN): ${c.iban}${ibanConfirmadoEfectivo ? ' — confirmado, coincide con el titular' : ' — ⚠️ sin confirmar en la ficha, verifícalo antes de usarlo'}\n` : '';
+  // César (07/11/2026, tercera vuelta): "falta indicar que también le envías el certificado
+  // bancario (para que no se pueda olvidar a RRHH)" — el enlace de descarga del certificado ya se
+  // añadía solo al final del correo, al pulsar "Enviar a gestoría" (más abajo, en
+  // enviarDocumentacionGestoriaCandidato), pero eso no se ve mientras se edita el cuerpo ni deja
+  // constancia expresa junto al resto de datos; se añade aquí, en el bloque de datos, para que quede
+  // explícito que se envía también ese documento y no solo el IBAN transcrito a mano.
+  // César (07/11/2026, quinta vuelta): "todos los archivos... deberían verlos adjuntos en el mismo
+  // correo" — ahora el DNI/NIE y el certificado bancario se adjuntan de verdad al correo (no un
+  // enlace), así que el texto ya no dice "enlace al final" salvo que haga falta el respaldo.
+  const certificadoBancarioLinea = c.certificado_bancario_adjunto_url ? `Certificado bancario: se adjunta a este correo\n` : '';
+  // César (07/11/2026, cuarta vuelta): "también debemos añadir la dirección del trabajador, eso lo
+  // tenemos del CV o de los datos del formulario" — domicilio/CP/localidad ya llegan del formulario
+  // público de candidatura y se guardan en la ficha (candModalDireccion/Cp/Localidad, ver más abajo
+  // en guardarCandidato); se combinan aquí en una sola línea para gestoría.
+  const direccionPartes = [c.direccion, [c.codigo_postal, c.localidad].filter((v) => v && v.trim()).join(' ')].filter((v) => v && v.trim());
+  const direccionLinea = `Dirección: ${direccionPartes.length ? direccionPartes.join(', ') : '— no consta en la ficha, pídesela al trabajador —'}\n`;
   // César (07/11/2026): "en el correo para la gestoría debes indicar 'Tipo de contrato:' y RRHH
   // deberá apuntar qué tipo de contrato hay que hacer" — no se infiere solo (no hay dato en la ficha
   // para ello); se deja la etiqueta en blanco en el cuerpo editable para que RR.HH. lo rellene antes
   // de enviar, igual que ya hace con destinatario/asunto si faltan.
-  $('candGestoriaCuerpo').value = `Buenos días,\n\nOs remitimos la documentación de incorporación de ${c.nombre} (${c.puesto_label || '—'}) para tramitar su alta:\n\nDNI/NIE: ${c.dni_nie || '—'}\nNúmero de afiliación a la Seguridad Social: ${c.numero_seguridad_social || '—'}\n${ibanLinea}Tipo de contrato: \n\nUn saludo,\nDepartamento de RR.HH.`;
+  //
+  // César (07/11/2026, segunda vuelta): reestructura el cuerpo — "no quiero que estén entre
+  // paréntesis esto porque es un dato relevante [...] departamento, dos puntos, alimentos y bebida,
+  // coma, sala" — el puesto_label del catálogo es "Sala (Alimentos y Bebidas)" (puesto + área entre
+  // paréntesis); se invierte a "Área, Puesto" en una línea "Departamento:" propia, sin paréntesis.
+  const departamentoLinea = _departamentoParaCorreoGestoria(c.puesto_label);
+  $('candGestoriaCuerpo').value = `Buenos días,\n\nOs remitimos la documentación de incorporación de ${c.nombre} para tramitar su alta.\n\nDepartamento: ${departamentoLinea}\nTipo de contrato: \n\nDNI/NIE: ${c.dni_nie || '—'}\n${direccionLinea}Número de afiliación a la Seguridad Social: ${c.numero_seguridad_social || '—'}\n${ibanLinea}${certificadoBancarioLinea}\nUn saludo,\nDepartamento de RR.HH.`;
   $('modalEnviarDocumentacionGestoria').classList.remove('hidden');
 }
 function cerrarEnviarDocumentacionGestoriaModal() {
@@ -10764,22 +10795,39 @@ async function enviarDocumentacionGestoriaCandidato(btn) {
     return;
   }
   const textoBtn = btn ? btn.textContent : null;
-  if (btn) { btn.disabled = true; btn.textContent = 'Generando enlaces y enviando…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Adjuntando documentos y enviando…'; }
   try {
-    // Enlaces de descarga generados aquí, en el momento de enviar (no al abrir el modal) — frescos y
-    // sin haber pasado por el cuerpo editable, para que nadie los borre o estropee sin querer.
+    // César (07/11/2026): "todos los archivos son para que los reciba la gestoría y debería verlos
+    // adjuntos en el mismo correo" — antes solo se mandaba un enlace de descarga de 7 días; ahora se
+    // descarga cada documento aquí mismo, en el momento de enviar, y se manda como adjunto real
+    // (migración 0120: notificaciones_cola.adjuntos + enviar_correo_externo p_adjuntos, reenviados
+    // por la Edge Function enviar-notificaciones a Resend). Si un archivo pesa demasiado o falla la
+    // descarga, no se bloquea el envío: se cae al enlace de 7 días de siempre, solo para ese archivo.
+    const MAX_ADJUNTO_BYTES = 8 * 1024 * 1024; // 8 MB por archivo — margen amplio para fotos/PDF de DNI o certificado
     const siete_dias = 7 * 24 * 60 * 60;
-    const enlaces = [];
-    if (c.dni_nie_adjunto_url) {
-      const { data } = await sb.storage.from('formularios-adjuntos').createSignedUrl(c.dni_nie_adjunto_url, siete_dias);
-      enlaces.push(`DNI/NIE: ${data ? data.signedUrl : '— no se ha podido generar el enlace, adjúntalo a mano —'}`);
-    }
-    if (c.certificado_bancario_adjunto_url) {
-      const { data } = await sb.storage.from('formularios-adjuntos').createSignedUrl(c.certificado_bancario_adjunto_url, siete_dias);
-      enlaces.push(`Certificado bancario: ${data ? data.signedUrl : '— no se ha podido generar el enlace, adjúntalo a mano —'}`);
-    }
-    if (enlaces.length) {
-      cuerpo += `\n\n— Enlaces de descarga (caducan en 7 días por seguridad) —\n${enlaces.join('\n')}`;
+    const adjuntos = [];
+    const enlacesFallback = [];
+    const prepararAdjunto = async (storagePath, nombreArchivo, etiqueta) => {
+      if (!storagePath) return;
+      try {
+        const { data: blob, error: errorDescarga } = await sb.storage.from('formularios-adjuntos').download(storagePath);
+        if (errorDescarga || !blob) throw errorDescarga || new Error('descarga vacía');
+        if (blob.size > MAX_ADJUNTO_BYTES) throw new Error('demasiado grande para adjuntar (máx. 8 MB)');
+        const buf = await blob.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binario = '';
+        const TROZO = 0x8000;
+        for (let i = 0; i < bytes.length; i += TROZO) binario += String.fromCharCode.apply(null, bytes.subarray(i, i + TROZO));
+        adjuntos.push({ nombre: nombreArchivo || storagePath.split('/').pop(), base64: btoa(binario) });
+      } catch (err) {
+        const { data: signed } = await sb.storage.from('formularios-adjuntos').createSignedUrl(storagePath, siete_dias);
+        enlacesFallback.push(`${etiqueta}: ${signed ? signed.signedUrl : '— no se ha podido generar el enlace, adjúntalo a mano —'} (no se pudo adjuntar directamente: ${err && err.message ? err.message : err})`);
+      }
+    };
+    await prepararAdjunto(c.dni_nie_adjunto_url, c.dni_nie_adjunto_nombre, 'DNI/NIE');
+    await prepararAdjunto(c.certificado_bancario_adjunto_url, c.certificado_bancario_adjunto_nombre, 'Certificado bancario');
+    if (enlacesFallback.length) {
+      cuerpo += `\n\n— Enlaces de descarga (caducan en 7 días por seguridad) —\n${enlacesFallback.join('\n')}`;
     }
     const { error } = await sb.rpc('enviar_correo_externo', {
       p_destinatario_email: destinatario,
@@ -10787,14 +10835,16 @@ async function enviarDocumentacionGestoriaCandidato(btn) {
       p_asunto: asunto,
       p_cuerpo: cuerpo,
       p_referencia_tabla: 'candidatos',
-      p_referencia_id: c.id
+      p_referencia_id: c.id,
+      p_adjuntos: adjuntos.length ? adjuntos : null
     });
     if (error) {
       mostrarToast('Error al enviar a gestoría: ' + error.message, false);
       return;
     }
     await sb.from('candidatos').update({ documentacion_enviada_gestoria_en: new Date().toISOString() }).eq('id', c.id);
-    mostrarToast(`Documentación enviada a gestoría ✓ Para: ${destinatario}${cc ? ' · CC: ' + cc : ''}`, true);
+    const avisoAdjuntos = adjuntos.length ? ` · ${adjuntos.length} archivo${adjuntos.length > 1 ? 's' : ''} adjunto${adjuntos.length > 1 ? 's' : ''}` : (enlacesFallback.length ? ' · ⚠️ algún archivo no se pudo adjuntar, revisa el correo (se envió como enlace)' : '');
+    mostrarToast(`Documentación enviada a gestoría ✓ Para: ${destinatario}${cc ? ' · CC: ' + cc : ''}${avisoAdjuntos}`, true);
     await registrarAuditoria('Candidaturas', 'Documentación de incorporación enviada a gestoría', `${c.nombre} — ${destinatario}`);
     cerrarEnviarDocumentacionGestoriaModal();
     await cargarCandidatosAdmin();
