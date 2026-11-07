@@ -2951,14 +2951,20 @@ function seguimientoContratoBlockHTML(p, seg) {
     contrato_firmado: seg && seg.fecha_firma,
     completado: null
   };
+  // César (07/11/2026): "la solicitud de alta ya está enviada, debería salir marcada [...] para
+  // que no se duplique" — cuando este paso 1 se marcó solo (renderFichaAdmin, a partir del envío
+  // ya hecho en el paso 5 de la candidatura), seg.texto_solicitud queda vacío (nunca se redactó ni
+  // se envió un correo aquí); se avisa de esto en vez de dejarlo indistinguible de un envío manual.
+  const solicitudAutoDerivada = estado && idxActual >= 0 && seg && !seg.texto_solicitud;
   const pasosHTML = SEG_CONTRATO_PASOS.map(([k, label], i) => {
     const hecho = i <= idxActual;
     const fecha = fechas[k] ? ' · ' + fechaCorta(String(fechas[k]).slice(0, 10)) : '';
+    const nota = k === 'solicitud_enviada' && hecho && solicitudAutoDerivada ? ' <span class="sub-c">(enviada junto con la documentación de la candidatura — paso 5)</span>' : '';
     // El antiguo icono emoji (⬜/✅) quedaba visualmente ambiguo — con el check ya dibujado dentro
     // del propio texto del paso ("✅ Alta confirmada...", icono meramente temático del paso, no del
     // progreso real) parecía que el paso ya estaba hecho aunque el estado real todavía no lo reflejara.
     // Un checkbox real (disabled, solo lectura) es el único indicador de progreso y no deja lugar a dudas.
-    return `<div class="row-item"><div class="l"><input type="checkbox" class="seg-check" disabled ${hecho ? 'checked' : ''} aria-label="${hecho ? 'Paso completado' : 'Paso pendiente'}"><div><span class="${hecho ? '' : 'sub-c'}">${label}${hecho ? fecha : ''}</span></div></div></div>`;
+    return `<div class="row-item"><div class="l"><input type="checkbox" class="seg-check" disabled ${hecho ? 'checked' : ''} aria-label="${hecho ? 'Paso completado' : 'Paso pendiente'}"><div><span class="${hecho ? '' : 'sub-c'}">${label}${hecho ? fecha : ''}${nota}</span></div></div></div>`;
   }).join('');
   let accion;
   if (!estado) {
@@ -3097,7 +3103,28 @@ async function renderFichaAdmin(id) {
   if (!p || !el) return;
   const { data: docs } = await sb.from('documentos').select('*').eq('trabajador_id', id).order('fecha', { ascending: false });
   fichaAdminDocumentosCache = docs || [];
-  const { data: seg } = await sb.from('seguimiento_contrato').select('*').eq('trabajador_id', id).maybeSingle();
+  let { data: seg } = await sb.from('seguimiento_contrato').select('*').eq('trabajador_id', id).maybeSingle();
+  // César (07/11/2026): "la solicitud de alta ya está enviada, debería salir marcada [...] para que
+  // no esté ocupando espacio ni para que no se duplique, hay que quitarlo" — si esta persona viene
+  // del circuito de candidaturas (paso 5 "Enviar a gestoría" YA mandó el DNI/NIE + certificado
+  // bancario + IBAN con la solicitud de alta real), no tiene sentido pedir aquí un SEGUNDO envío
+  // manual de la misma solicitud: el paso 1 se marca solo, con la fecha real de aquel envío, sin
+  // mandar ningún correo nuevo — el formulario de envío manual (pensado para altas que no vienen de
+  // una candidatura) deja de mostrarse en ese caso.
+  if (!seg) {
+    const { data: candidatoOrigen } = await sb.from('candidatos').select('documentacion_enviada_gestoria_en').eq('trabajador_id', id).maybeSingle();
+    if (candidatoOrigen && candidatoOrigen.documentacion_enviada_gestoria_en) {
+      const { data: segAuto } = await sb
+        .from('seguimiento_contrato')
+        .upsert(
+          { hotel_id: usuarioActual.hotel_id, trabajador_id: id, estado: 'solicitud_enviada', fecha_solicitud: String(candidatoOrigen.documentacion_enviada_gestoria_en).slice(0, 10) },
+          { onConflict: 'trabajador_id' }
+        )
+        .select()
+        .maybeSingle();
+      seg = segAuto || seg;
+    }
+  }
 
   // Antes sumaba TODO el catálogo de formación (6 cursos), no solo los asignados al puesto de esta
   // persona — mismo motor que Uniformidad y EPIs / Panel de Dirección (calcularCosteEpiPuesto +
@@ -8660,6 +8687,24 @@ function _areaParaCorreoGestoria(puestoKey, labelRespaldo) {
   const m = /^(.*?)\s*\((.*)\)\s*$/.exec(labelRespaldo.trim());
   return m ? m[2] : labelRespaldo;
 }
+// César (07/11/2026): "en la ficha también pone supervisor y no has puesto nada [...] esto también
+// es absurdo que salga vacío" — al dar de alta se intenta primero el responsable REAL asignado en
+// el Organigrama para ese departamento (dato real de este hotel); solo si ese departamento no tiene
+// responsable asignado todavía se usa un cargo genérico por puesto, para no dejarlo en blanco.
+const SUPERVISOR_PUESTO_POR_DEFECTO = {
+  sala: 'Metre',
+  cocina: 'Jefe/a de cocina',
+  mantenimiento: 'Jefe/a de Mantenimiento',
+  pisos: 'Gobernanta/e',
+  recepcion: 'Jefe/a de Recepción',
+  reformas: 'Encargado/a de Obra',
+  administracion: 'Jefe/a de Administración'
+};
+function _supervisorPorDefecto(departamentoLabel, puestoKey) {
+  const enOrganigrama = (organigramaCache || []).find((n) => n.dept === departamentoLabel);
+  if (enOrganigrama && enOrganigrama.responsable_nombre) return enOrganigrama.responsable_nombre;
+  return SUPERVISOR_PUESTO_POR_DEFECTO[puestoKey] || null;
+}
 const CANDIDATO_ESTADOS = {
   recibida: ['📥 Recibida', 'b-amber'],
   formulario_enviado: ['✉️ Formulario Fase 1 enviado', 'b-amber'],
@@ -11210,7 +11255,8 @@ async function darAltaDesdeCanditado(btn) {
         fecha_primera_incorporacion: fechaAlta,
         dni_nie: c.dni_nie || null,
         direccion: c.direccion || null,
-        seguridad_social: c.numero_seguridad_social || null
+        seguridad_social: c.numero_seguridad_social || null,
+        supervisor_nombre: _supervisorPorDefecto(dept ? dept.label.split(' (')[0] : null, c.puesto_key)
       })
       .select()
       .single();
@@ -11219,6 +11265,28 @@ async function darAltaDesdeCanditado(btn) {
       return;
     }
     await sb.from('candidatos').update({ estado: 'alta_realizada', trabajador_id: nuevo.id }).eq('id', currentCandidatoId);
+    // César (07/11/2026): "en Mi Uniformidad y EPIs pone 'sin calzado asignado' [...] debería poner
+    // qué le vamos a entregar a este trabajador, y son las dotaciones que salen en la previsión del
+    // gasto [...] por trabajador" — epi_catalogo_puesto ya define qué le corresponde a cada
+    // puesto_key (es la misma fuente que calcula el coste previsto); se generan aquí las entregas
+    // pendientes de firma (la firma se registra cuando se entrega físicamente) para que la ficha
+    // nueva no aparezca vacía.
+    if (c.puesto_key) {
+      const { data: catalogoPuesto } = await sb.from('epi_catalogo_puesto').select('*').eq('puesto_key', c.puesto_key);
+      if (catalogoPuesto && catalogoPuesto.length) {
+        await sb.from('epi_entregas').insert(
+          catalogoPuesto.map((item) => ({
+            hotel_id: usuarioActual.hotel_id,
+            trabajador_id: nuevo.id,
+            item: item.item,
+            tipo: item.tipo,
+            cantidad: item.cantidad || 1,
+            fecha_entrega: fechaAlta,
+            conformidad_firmada: false
+          }))
+        );
+      }
+    }
     // César: "este documento debería ser parte de la ficha del trabajador" — el consentimiento RGPD
     // que firmó como candidato/a se traslada a su ficha de documentos al darle de alta, para que
     // quede junto al resto de su expediente (y protegido por el mismo bloqueo de borrado de la
