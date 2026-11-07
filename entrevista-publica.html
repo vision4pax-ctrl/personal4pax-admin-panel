@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Entrevista — Fase 1 — PersonalIA 4Pax</title>
+<style>
+  :root{
+    --brand-50:#edfbf7; --brand-100:#d4f6ec; --brand-400:#29cf9f; --brand-500:#22ab84; --brand-600:#1b8b6b; --brand-700:#146950;
+    --ink-900:#0b1410;
+    --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0; --slate-400:#94a3b8; --slate-500:#64748b; --slate-600:#475569; --slate-900:#0f172a;
+    --rose-500:#f43f5e; --rose-600:#e11d48;
+    --amber-50:#fffbeb; --amber-500:#f59e0b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  .hidden{display:none !important;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#F3F4F6;color:var(--slate-900);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  .wrap{max-width:640px;margin:0 auto;padding:22px 16px 60px;}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+  .top .logo{width:38px;height:38px;border-radius:10px;background:var(--brand-600);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+  .top b{font-size:14px;color:var(--ink-900);display:block;}
+  .top span{font-size:11.5px;color:var(--slate-500);}
+  .card{background:#fff;border-radius:18px;border:1px solid var(--slate-200);box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px;margin-bottom:14px;}
+  h1{font-size:17px;margin:0 0 4px;color:var(--ink-900);font-weight:800;}
+  .sub{font-size:12.5px;color:var(--slate-500);margin:0 0 16px;}
+  label{font-size:12.5px;font-weight:700;color:var(--slate-600);display:block;margin-bottom:4px;}
+  label .req{color:var(--rose-600);font-weight:800;}
+  input,select,textarea{width:100%;padding:10px 11px;border:1px solid var(--slate-200);border-radius:10px;font-size:14.5px;margin-bottom:12px;font-family:inherit;background:#eef3fb;}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--brand-400);border-color:var(--brand-400);background:#fff;}
+  input[disabled]{background:var(--slate-100);color:var(--slate-500);}
+  textarea{min-height:70px;resize:vertical;}
+  .pregunta{border:1px solid var(--slate-200);border-radius:12px;padding:14px;margin-bottom:12px;}
+  .pregunta .num{display:inline-block;background:var(--brand-50);color:var(--brand-700);font-weight:800;font-size:11px;border-radius:999px;padding:2px 9px;margin-bottom:8px;}
+  .pregunta .txt{font-size:14px;font-weight:700;color:var(--ink-900);margin:0 0 10px;}
+  .pregunta .opciones{font-size:11.5px;color:var(--slate-500);margin:-6px 0 8px;}
+  .pregunta .sub{font-size:12.5px;font-weight:700;color:var(--slate-600);margin:10px 0 4px;}
+  button{width:100%;padding:12px;border-radius:10px;border:none;background:var(--brand-600);color:#fff;font-size:14.5px;font-weight:700;cursor:pointer;}
+  button:hover{background:var(--brand-700);}
+  button:disabled{background:var(--slate-400);cursor:not-allowed;}
+  .err{color:var(--rose-600);font-size:12.5px;margin:-4px 0 12px;}
+  .callout{background:var(--amber-50);border:1px solid var(--amber-500);border-radius:10px;padding:10px 12px;font-size:11.5px;color:var(--slate-600);margin-bottom:14px;}
+  .ok{display:none;padding:30px 10px 20px;}
+  .ok .ic{font-size:40px;margin-bottom:10px;text-align:center;}
+  .ok h2{font-size:16px;margin:0 0 6px;color:var(--ink-900);text-align:center;}
+  .ok p{font-size:12.5px;color:var(--slate-500);margin:0 0 4px;text-align:center;}
+  .foot{font-size:10.5px;color:var(--slate-400);text-align:center;margin-top:18px;}
+  .skeleton{text-align:center;padding:40px 10px;color:var(--slate-500);font-size:13px;}
+  .recap{margin-top:18px;border-top:1px solid var(--slate-200);padding-top:14px;}
+  .recap .item{margin-bottom:10px;}
+  .recap .item .txt{font-size:12.5px;font-weight:700;color:var(--slate-600);margin:0 0 2px;}
+  .recap .item .resp{font-size:13.5px;color:var(--ink-900);margin:0;white-space:pre-wrap;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:8px;padding:8px 10px;}
+  .recap .item .resp.vacia{color:var(--slate-400);font-style:italic;}
+  #btnDescargarRespuestas{background:var(--slate-900);margin-top:4px;}
+  #btnDescargarRespuestas:hover{background:#000;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="logo">📝</div>
+    <div><b>Entrevista — primera fase</b><span id="hotelNombre">Cargando…</span></div>
+  </div>
+
+  <div id="estadoCarga" class="card skeleton">Comprobando el enlace…</div>
+
+  <div id="bloqueFormulario" class="hidden">
+    <div class="card">
+      <h1>Hola <span id="efNombreTitulo"></span></h1>
+      <p class="sub">Antes de tu entrevista presencial nos gustaría conocerte un poco mejor. Responde con tranquilidad a las siguientes preguntas — no hay respuestas correctas o incorrectas, solo queremos saber más sobre ti.</p>
+
+      <label>Nombre</label>
+      <input type="text" id="efNombre" disabled>
+
+      <label>Puesto</label>
+      <input type="text" id="efPuesto" disabled>
+
+      <label>Fecha <span class="req">*</span></label>
+      <input type="date" id="efFecha" required>
+
+      <form id="formEntrevistaFase1">
+        <div id="efPreguntas"></div>
+        <p class="err hidden" id="efError"></p>
+        <button type="submit" id="efSubmitBtn">Enviar respuestas</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="bloqueError" class="card hidden">
+    <h1>Enlace no válido</h1>
+    <p class="sub">Este enlace no corresponde a ninguna candidatura registrada, o ha caducado. Comprueba que el enlace es correcto, o contacta directamente con el hotel.</p>
+  </div>
+
+  <div id="bloqueOk" class="card ok">
+    <div class="ic">✅</div>
+    <h2 id="okTitulo">¡Gracias!</h2>
+    <p id="okSub1">Hemos recibido tus respuestas correctamente.</p>
+    <p id="okSub2">Revisaremos tu candidatura y nos pondremos en contacto contigo si avanzas a la siguiente fase.</p>
+    <button type="button" id="btnDescargarRespuestas">⬇️ Descargar mis respuestas</button>
+    <div class="recap" id="okRecap"></div>
+  </div>
+
+  <p class="foot">PersonalIA 4Pax — Gestión de Recursos Humanos</p>
+</div>
+
+<script src="supabase.js"></script>
+<script>
+(function () {
+  'use strict';
+  const SUPABASE_URL = 'https://uybljgcimvnfbgumucwo.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_ndBnIFRxI4TB5YYJiBxdXQ_o_qVnb-i';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+
+  // REGLA ESTRICTA DE SEGURIDAD (ticket de desarrollo): "El candidato JAMÁS debe ver las rúbricas
+  // de evaluación (lenguaje corporal, actitud, interés), ni notas, ni porcentajes. Solo las
+  // preguntas y las cajas de texto." — por eso esta lista, trascrita a mano a partir de las
+  // mismas 16 preguntas del panel de administración (ENTREVISTA_PREGUNTAS, main.js), NUNCA
+  // incluye el campo "criterios" de ese objeto: no es una ocultación en el cliente, es que esta
+  // página nunca ha tenido esos datos — no existen en ningún fichero que se sirva aquí.
+  const PREGUNTAS = [
+    { id: 1, pregunta: '¿Es la primera vez que tiene una entrevista con nosotros?' },
+    { id: 2, pregunta: '¿Qué le ha motivado a contactar con nosotros?' },
+    { id: 3, pregunta: '¿Conoce nuestra organización, desde cuándo y por qué medios?' },
+    { id: 4, pregunta: '¿Cómo considera que debe ser su relación con compañeros de trabajo y la empresa?' },
+    { id: 5, pregunta: 'Hábleme de su disponibilidad horaria.', sub_id: '5.1', sub_pregunta: '¿Tiene alguna preferencia? ¿Por qué?' },
+    { id: 6, pregunta: 'Formación: Centro y características. Idiomas y nivel.', sub_id: '6.1', sub_pregunta: '¿Cuáles son sus características más relevantes de la formación que indica?' },
+    { id: 7, pregunta: '¿Se considera una persona que se adapta a los cambios? ¿Por qué?' },
+    { id: 8, pregunta: '¿Le gusta trabajar en equipo? ¿Por qué?' },
+    { id: 9, pregunta: '¿Tiene formación en PRL?' },
+    { id: 10, pregunta: 'Experiencia profesional y otros datos de interés, ejemplos:' },
+    { id: 11, pregunta: '¿Cuál es su motivación para este trabajo?' },
+    { id: 12, pregunta: '¿Cómo gestiona las críticas?' },
+    { id: 13, pregunta: '¿Cuáles son sus expectativas si se incorpora a este puesto?' },
+    { id: 14, pregunta: 'Ante una situación puntual de estrés:', opciones: ['a) Pide ayuda', 'b) Busca solución', 'c) Comunica la situación a un compañero', 'd) Comunica la situación a un responsable'], sub_id: '14.1', sub_pregunta: '¿Por qué razón?' },
+    { id: 15, pregunta: '¿Tiene alguna pregunta?' },
+    { id: 16, pregunta: '¿Le ha generado alguna duda esta entrevista?' }
+  ];
+
+  let nombreCandidato = '';
+  let hotelNombre = '';
+
+  function pintarPreguntas() {
+    $('efPreguntas').innerHTML = PREGUNTAS.map((p) => `
+      <div class="pregunta">
+        <span class="num">Pregunta ${p.id}</span>
+        <p class="txt">${p.pregunta}</p>
+        ${p.opciones ? `<p class="opciones">${p.opciones.join(' · ')}</p>` : ''}
+        <textarea id="efResp-${p.id}" placeholder="Escribe tu respuesta…"></textarea>
+        ${p.sub_pregunta ? `<p class="sub">${p.sub_id} ${p.sub_pregunta}</p><textarea id="efResp-${p.sub_id.replace('.', '_')}" placeholder="Escribe tu respuesta…"></textarea>` : ''}
+      </div>
+    `).join('');
+  }
+
+  // César: "el candidato [...] debería tener la opción o bien de descargársela o bien de poder
+  // acceder [a sus respuestas], aunque no pueda modificar las preguntas [...] que no pierda las
+  // respuestas que ha enviado" — mismo recap de solo lectura tanto justo después de enviar como al
+  // volver a abrir el mismo enlace más tarde; nunca permite editar, solo leer y descargar.
+  function pintarRecapRespuestas(respuestas) {
+    const r = respuestas || {};
+    $('okRecap').innerHTML = PREGUNTAS.map((p) => {
+      const val = (r[String(p.id)] || '').trim();
+      let html = `<div class="item"><p class="txt">${p.id}. ${p.pregunta}</p><p class="resp${val ? '' : ' vacia'}">${val || '(sin respuesta)'}</p></div>`;
+      if (p.sub_pregunta) {
+        const valSub = (r[p.sub_id] || '').trim();
+        html += `<div class="item"><p class="txt">${p.sub_id} ${p.sub_pregunta}</p><p class="resp${valSub ? '' : ' vacia'}">${valSub || '(sin respuesta)'}</p></div>`;
+      }
+      return html;
+    }).join('');
+  }
+
+  function construirTextoDescarga(fecha, respuestas) {
+    const r = respuestas || {};
+    const lineas = [`Entrevista — Fase 1`, `Candidato/a: ${nombreCandidato}`, `Hotel: ${hotelNombre}`, `Fecha: ${fecha || ''}`, ''];
+    PREGUNTAS.forEach((p) => {
+      lineas.push(`${p.id}. ${p.pregunta}`, (r[String(p.id)] || '').trim() || '(sin respuesta)', '');
+      if (p.sub_pregunta) {
+        lineas.push(`${p.sub_id} ${p.sub_pregunta}`, (r[p.sub_id] || '').trim() || '(sin respuesta)', '');
+      }
+    });
+    return lineas.join('\n');
+  }
+
+  function descargarRespuestas(fecha, respuestas) {
+    const texto = construirTextoDescarga(fecha, respuestas);
+    const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `entrevista-fase1-${(nombreCandidato || 'candidatura').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'candidatura'}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function mostrarRecibido(fecha, respuestas, { yaAntes }) {
+    $('estadoCarga').classList.add('hidden');
+    $('bloqueFormulario').classList.add('hidden');
+    $('okTitulo').textContent = yaAntes ? 'Ya hemos recibido tus respuestas' : '¡Gracias!';
+    $('okSub1').textContent = yaAntes
+      ? 'Este enlace ya se utilizó anteriormente — aquí tienes lo que enviaste, para tu tranquilidad.'
+      : 'Hemos recibido tus respuestas correctamente.';
+    $('okSub2').textContent = 'Revisaremos tu candidatura y nos pondremos en contacto contigo si avanzas a la siguiente fase.';
+    pintarRecapRespuestas(respuestas);
+    $('btnDescargarRespuestas').onclick = () => descargarRespuestas(fecha, respuestas);
+    $('bloqueOk').style.display = 'block';
+  }
+
+  async function init() {
+    if (!token) {
+      mostrarError();
+      return;
+    }
+    try {
+      const { data, error } = await sb.rpc('_entrevista_fase1_datos_publicos', { p_token: token });
+      const fila = Array.isArray(data) ? data[0] : data;
+      if (error || !fila || !fila.nombre) {
+        mostrarError();
+        return;
+      }
+      nombreCandidato = fila.nombre || '';
+      hotelNombre = fila.hotel_nombre || '';
+      $('hotelNombre').textContent = hotelNombre;
+      if (fila.ya_respondido) {
+        mostrarRecibido(fila.fecha, fila.respuestas, { yaAntes: true });
+        return;
+      }
+      $('efNombreTitulo').textContent = nombreCandidato.split(' ')[0];
+      $('efNombre').value = nombreCandidato;
+      $('efPuesto').value = fila.puesto_label || '—';
+      $('efFecha').value = new Date().toISOString().slice(0, 10);
+      pintarPreguntas();
+      $('estadoCarga').classList.add('hidden');
+      $('bloqueFormulario').classList.remove('hidden');
+    } catch (e) {
+      mostrarError();
+    }
+  }
+
+  function mostrarError() {
+    $('estadoCarga').classList.add('hidden');
+    $('bloqueError').classList.remove('hidden');
+  }
+
+  function mostrarErrorForm(msg) {
+    const err = $('efError');
+    err.textContent = msg;
+    err.classList.remove('hidden');
+  }
+
+  $('formEntrevistaFase1').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('efError').classList.add('hidden');
+    const fecha = $('efFecha').value;
+    if (!fecha) {
+      mostrarErrorForm('Indica la fecha.');
+      return;
+    }
+    const respuestas = {};
+    PREGUNTAS.forEach((p) => {
+      respuestas[String(p.id)] = ($('efResp-' + p.id).value || '').trim();
+      if (p.sub_id) {
+        respuestas[p.sub_id] = ($('efResp-' + p.sub_id.replace('.', '_')).value || '').trim();
+      }
+    });
+    const btn = $('efSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+    const { error } = await sb.rpc('responder_entrevista_fase1', {
+      p_token: token,
+      p_fecha: fecha,
+      p_respuestas: respuestas
+    });
+    if (error) {
+      // César: "tiene que estar claro y en español" — responder_entrevista_fase1() ya devuelve sus
+      // propios mensajes en español cuando el motivo es de negocio (enlace caducado, ya
+      // respondido...); para cualquier otro fallo inesperado no se muestra el texto técnico tal
+      // cual, sino un mensaje genérico claro.
+      const msg = error.message || '';
+      const esMensajePropio = /enlace no válido|ya se registró una respuesta|respuestas no válidas/i.test(msg);
+      mostrarErrorForm((esMensajePropio ? msg : 'No se han podido enviar tus respuestas.') + ' Inténtalo de nuevo o contacta con el hotel.');
+      btn.disabled = false;
+      btn.textContent = 'Enviar respuestas';
+      return;
+    }
+    mostrarRecibido(fecha, respuestas, { yaAntes: false });
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>

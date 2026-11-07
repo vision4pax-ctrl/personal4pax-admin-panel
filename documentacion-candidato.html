@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Documentación de incorporación — PersonalIA 4Pax</title>
+<style>
+  :root{
+    --brand-50:#edfbf7; --brand-100:#d4f6ec; --brand-400:#29cf9f; --brand-500:#22ab84; --brand-600:#1b8b6b; --brand-700:#146950;
+    --ink-900:#0b1410;
+    --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0; --slate-400:#94a3b8; --slate-500:#64748b; --slate-600:#475569; --slate-900:#0f172a;
+    --rose-500:#f43f5e; --rose-600:#e11d48;
+    --amber-50:#fffbeb; --amber-500:#f59e0b; --amber-600:#d97706;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  .hidden{display:none !important;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#F3F4F6;color:var(--slate-900);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  .wrap{max-width:640px;margin:0 auto;padding:22px 16px 60px;}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+  .top .logo{width:38px;height:38px;border-radius:10px;background:var(--brand-600);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+  .top b{font-size:14px;color:var(--ink-900);display:block;}
+  .top span{font-size:11.5px;color:var(--slate-500);}
+  .card{background:#fff;border-radius:18px;border:1px solid var(--slate-200);box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px;margin-bottom:14px;}
+  h1{font-size:17px;margin:0 0 4px;color:var(--ink-900);font-weight:800;}
+  .sub{font-size:12.5px;color:var(--slate-500);margin:0 0 16px;}
+  label{font-size:12.5px;font-weight:700;color:var(--slate-600);display:block;margin-bottom:4px;}
+  label .req{color:var(--rose-600);font-weight:800;}
+  input{width:100%;padding:10px 11px;border:1px solid var(--slate-200);border-radius:10px;font-size:14.5px;font-family:inherit;background:#eef3fb;}
+  input:focus{outline:2px solid var(--brand-400);border-color:var(--brand-400);background:#fff;}
+  button{padding:10px 16px;border-radius:10px;border:none;background:var(--brand-600);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  button:hover{background:var(--brand-700);}
+  button:disabled{background:var(--slate-400);cursor:not-allowed;}
+  button.secundario{background:var(--slate-100);color:var(--slate-700);}
+  button.secundario:hover{background:var(--slate-200);}
+  .item{border:1px solid var(--slate-200);border-radius:14px;padding:16px;margin-bottom:12px;}
+  .item.completo{border-color:var(--brand-400);background:var(--brand-50);}
+  .item .cab{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .item .tit{font-size:14px;font-weight:800;color:var(--ink-900);margin:0;display:flex;align-items:center;gap:7px;}
+  .item .estado{font-size:11.5px;font-weight:700;color:var(--slate-500);}
+  .item.completo .estado{color:var(--brand-700);}
+  .item .desc{font-size:12px;color:var(--slate-500);margin:0 0 10px;}
+  .filaSubida{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .filaSubida input[type=file]{display:none;}
+  .nombreArchivo{font-size:12px;color:var(--slate-600);overflow-wrap:anywhere;}
+  .err{color:var(--rose-600);font-size:12px;margin:8px 0 0;}
+  .ok-msg{color:var(--brand-700);font-size:12px;margin:8px 0 0;font-weight:700;}
+  .progreso{display:flex;gap:6px;margin-bottom:16px;}
+  .progreso .paso{flex:1;height:5px;border-radius:999px;background:var(--slate-200);}
+  .progreso .paso.hecho{background:var(--brand-500);}
+  .callout{background:var(--brand-50);border:1px solid var(--brand-400);border-radius:12px;padding:14px;font-size:12.5px;color:var(--ink-900);margin-bottom:16px;}
+  .callout b{color:var(--brand-700);}
+  .foot{font-size:10.5px;color:var(--slate-400);text-align:center;margin-top:18px;}
+  .skeleton{text-align:center;padding:40px 10px;color:var(--slate-500);font-size:13px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="logo">📄</div>
+    <div><b>Documentación de incorporación</b><span id="hotelNombre">Cargando…</span></div>
+  </div>
+
+  <div id="estadoCarga" class="card skeleton">Comprobando el enlace…</div>
+
+  <div id="bloqueContenido" class="hidden">
+    <div class="card">
+      <h1>Hola <span id="dcNombreTitulo"></span> 👋</h1>
+      <p class="sub" id="dcIntro">Para tramitar tu incorporación necesitamos estos 3 documentos. Puedes completarlos en el orden que prefieras, y volver a este mismo enlace cuando quieras si te falta alguno.</p>
+      <div class="progreso">
+        <div class="paso" id="pasoNss"></div>
+        <div class="paso" id="pasoDni"></div>
+        <div class="paso" id="pasoBanco"></div>
+      </div>
+      <div class="callout hidden" id="dcCompletoAviso"><b>✅ Ya tenemos los 3 documentos.</b> Gracias — en breve seguimos con los próximos pasos de tu incorporación.</div>
+    </div>
+
+    <div class="item" id="itemNss">
+      <div class="cab"><p class="tit">🪪 Número de afiliación a la Seguridad Social</p><span class="estado" id="estadoNss">Pendiente</span></div>
+      <p class="desc">Tal y como aparece en tu tarjeta o documento de afiliación.</p>
+      <div class="filaSubida">
+        <input type="text" id="inputNss" placeholder="Ej. 28/1234567890-12" style="flex:1;min-width:180px;">
+        <button type="button" id="btnGuardarNss">Guardar</button>
+      </div>
+      <p class="err hidden" id="errNss"></p>
+    </div>
+
+    <div class="item" id="itemDni">
+      <div class="cab"><p class="tit">🪪 DNI o NIE (ambas caras, en el mismo archivo o uno cada uno)</p><span class="estado" id="estadoDni">Pendiente</span></div>
+      <p class="desc">Foto o PDF, que se lea bien.</p>
+      <div class="filaSubida">
+        <button type="button" id="btnSubirDni">📎 Elegir archivo</button>
+        <input type="file" id="inputDni" accept=".pdf,.jpg,.jpeg,.png">
+        <span class="nombreArchivo" id="nombreArchivoDni">Ningún archivo subido todavía.</span>
+      </div>
+      <p class="err hidden" id="errDni"></p>
+    </div>
+
+    <div class="item" id="itemBanco">
+      <div class="cab"><p class="tit">🏦 Certificado bancario de titularidad</p><span class="estado" id="estadoBanco">Pendiente</span></div>
+      <p class="desc">Documento emitido por tu banco donde figuren tu número de cuenta (IBAN español), tu nombre y tu DNI/NIE. No sirve una foto de la tarjeta.</p>
+      <div class="filaSubida">
+        <button type="button" id="btnSubirBanco">📎 Elegir archivo</button>
+        <input type="file" id="inputBanco" accept=".pdf,.jpg,.jpeg,.png">
+        <span class="nombreArchivo" id="nombreArchivoBanco">Ningún archivo subido todavía.</span>
+      </div>
+      <p class="err hidden" id="errBanco"></p>
+    </div>
+
+    <div class="card" id="dcPrivacidad" style="font-size:11.5px;color:var(--slate-500);white-space:pre-wrap;line-height:1.6;"></div>
+  </div>
+
+  <div id="bloqueError" class="card hidden">
+    <h1>Enlace no válido</h1>
+    <p class="sub">Este enlace no corresponde a ninguna candidatura registrada. Comprueba que lo has copiado completo, o contacta directamente con el hotel.</p>
+  </div>
+
+  <p class="foot">PersonalIA 4Pax — Gestión de Recursos Humanos</p>
+</div>
+
+<script src="supabase.js"></script>
+<script>
+(function () {
+  'use strict';
+  const SUPABASE_URL = 'https://uybljgcimvnfbgumucwo.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_ndBnIFRxI4TB5YYJiBxdXQ_o_qVnb-i';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  let hotelId = null;
+
+  // César: "tienes que incluir la normativa, protección de datos, el compromiso con el RGPD" — se
+  // muestra también aquí, en el propio punto de recogida de los documentos (art. 13 RGPD,
+  // información en el momento de la recogida), no solo en el correo. Mismo texto centralizado que
+  // usa el correo (_texto_clausula_rgpd_documentacion_incorporacion, migración 0111); si el RPC
+  // fallase, respaldo local para que la página nunca se quede sin la cláusula.
+  const CLAUSULA_RGPD_RESPALDO = 'INFORMACIÓN SOBRE PROTECCIÓN DE DATOS — DOCUMENTACIÓN DE INCORPORACIÓN\nResponsable: el hotel/empresa que te ha seleccionado para este puesto. Finalidad: tramitar tu alta como persona trabajadora. Base legal: necesidad contractual y cumplimiento de obligaciones legales (art. 6.1.b y 6.1.c RGPD; Ley General de la Seguridad Social; Estatuto de los Trabajadores). Datos solicitados: solo los estrictamente necesarios para tramitar tu alta. Destinatarios: la Tesorería General de la Seguridad Social y la Agencia Tributaria, por obligación legal. Conservación: mientras dure tu relación laboral y, después, el plazo legal de prescripción (hasta 4 años). Seguridad: enlace personal y cifrado, accesible solo con tu identificador único. Derechos: acceso, rectificación, supresión, oposición, limitación y portabilidad, dirigiéndote al responsable del proceso.';
+
+  function sanitizarNombreArchivo(nombre) {
+    const partes = nombre.split('.');
+    const ext = partes.length > 1 ? partes.pop() : '';
+    const base = partes.join('.')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80) || 'archivo';
+    return ext ? `${base}.${ext.toLowerCase().replace(/[^a-z0-9]/g, '')}` : base;
+  }
+
+  function mostrarError() {
+    $('estadoCarga').classList.add('hidden');
+    $('bloqueError').classList.remove('hidden');
+  }
+
+  function pintarEstado(fila) {
+    const tieneNss = !!(fila.numero_seguridad_social && fila.numero_seguridad_social.trim());
+    const tieneDni = !!fila.dni_nie_adjunto_nombre;
+    const tieneBanco = !!fila.certificado_bancario_adjunto_nombre;
+
+    $('pasoNss').classList.toggle('hecho', tieneNss);
+    $('pasoDni').classList.toggle('hecho', tieneDni);
+    $('pasoBanco').classList.toggle('hecho', tieneBanco);
+
+    $('itemNss').classList.toggle('completo', tieneNss);
+    $('estadoNss').textContent = tieneNss ? '✅ Guardado' : 'Pendiente';
+    if (tieneNss) $('inputNss').value = fila.numero_seguridad_social;
+
+    $('itemDni').classList.toggle('completo', tieneDni);
+    $('estadoDni').textContent = tieneDni ? '✅ Recibido' : 'Pendiente';
+    $('nombreArchivoDni').textContent = tieneDni ? `📎 ${fila.dni_nie_adjunto_nombre} — puedes subir otro para sustituirlo.` : 'Ningún archivo subido todavía.';
+
+    $('itemBanco').classList.toggle('completo', tieneBanco);
+    $('estadoBanco').textContent = tieneBanco ? '✅ Recibido' : 'Pendiente';
+    $('nombreArchivoBanco').textContent = tieneBanco ? `📎 ${fila.certificado_bancario_adjunto_nombre} — puedes subir otro para sustituirlo.` : 'Ningún archivo subido todavía.';
+
+    $('dcCompletoAviso').classList.toggle('hidden', !fila.documentacion_recibida);
+  }
+
+  async function recargarEstado() {
+    const { data } = await sb.rpc('_documentacion_candidato_datos_publicos', { p_token: token });
+    const fila = Array.isArray(data) ? data[0] : data;
+    if (fila) pintarEstado(fila);
+    return fila;
+  }
+
+  function mostrarErrorCampo(id, msg) {
+    const el = $(id);
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+  function ocultarErrorCampo(id) {
+    $(id).classList.add('hidden');
+  }
+
+  async function guardarNss() {
+    ocultarErrorCampo('errNss');
+    const valor = $('inputNss').value.trim();
+    if (!valor) { mostrarErrorCampo('errNss', 'Escribe tu número de Seguridad Social.'); return; }
+    const btn = $('btnGuardarNss');
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    const { error } = await sb.rpc('registrar_numero_seguridad_social_candidato', { p_token: token, p_nss: valor });
+    btn.disabled = false; btn.textContent = 'Guardar';
+    if (error) { mostrarErrorCampo('errNss', error.message || 'No se ha podido guardar. Inténtalo de nuevo.'); return; }
+    await recargarEstado();
+  }
+
+  async function subirArchivo(tipo, inputId, btnId, errId, carpeta) {
+    ocultarErrorCampo(errId);
+    const archivo = $(inputId).files[0];
+    if (!archivo) return;
+    const MAX_MB = 15;
+    if (archivo.size > MAX_MB * 1024 * 1024) {
+      mostrarErrorCampo(errId, `El archivo pesa demasiado (máx. ${MAX_MB} MB).`);
+      $(inputId).value = '';
+      return;
+    }
+    const btn = $(btnId);
+    const textoBtn = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Subiendo…';
+    try {
+      const ruta = `candidatos-publico/${hotelId}/documentacion/${token}/${carpeta}/${Date.now()}-${sanitizarNombreArchivo(archivo.name)}`;
+      const { error: errorSubida } = await sb.storage.from('formularios-adjuntos').upload(ruta, archivo);
+      if (errorSubida) {
+        mostrarErrorCampo(errId, 'No se ha podido subir el archivo: ' + errorSubida.message);
+        return;
+      }
+      const { error } = await sb.rpc('registrar_documento_candidato', {
+        p_token: token,
+        p_tipo: tipo,
+        p_storage_path: ruta,
+        p_nombre_archivo: archivo.name
+      });
+      if (error) {
+        mostrarErrorCampo(errId, error.message || 'No se ha podido registrar el archivo. Inténtalo de nuevo.');
+        return;
+      }
+      // César (03/11/2026): "Crea el OCR" — lectura automática en segundo plano (Claude Vision,
+      // migración 0115); no se espera su resultado aquí — el candidato ya ha terminado su parte y no
+      // tiene nada que ver ni confirmar sobre esto, es RR.HH. quien revisa la sugerencia en el panel
+      // admin. Si falla (p. ej. aún sin configurar), no debe afectar a esta subida, que ya ha ido bien.
+      sb.functions.invoke('extraer-datos-documento', { body: { token, tipo } }).catch(() => {});
+      await recargarEstado();
+    } finally {
+      btn.disabled = false; btn.textContent = textoBtn;
+      $(inputId).value = '';
+    }
+  }
+
+  async function init() {
+    if (!token) { mostrarError(); return; }
+    try {
+      const { data, error } = await sb.rpc('_documentacion_candidato_datos_publicos', { p_token: token });
+      const fila = Array.isArray(data) ? data[0] : data;
+      if (error || !fila || !fila.nombre) { mostrarError(); return; }
+
+      hotelId = fila.hotel_id;
+      $('hotelNombre').textContent = fila.hotel_nombre || '';
+      $('dcNombreTitulo').textContent = (fila.nombre || '').split(' ')[0];
+      if (fila.puntuacion_adaptacion != null) {
+        $('dcIntro').textContent = `¡Enhorabuena de nuevo! Para tramitar tu incorporación necesitamos estos 3 documentos. Puedes completarlos en el orden que prefieras, y volver a este mismo enlace cuando quieras si te falta alguno.`;
+      }
+      pintarEstado(fila);
+      $('estadoCarga').classList.add('hidden');
+      $('bloqueContenido').classList.remove('hidden');
+
+      const { data: clausula } = await sb.rpc('_texto_clausula_rgpd_documentacion_incorporacion').catch(() => ({ data: null }));
+      $('dcPrivacidad').textContent = clausula || CLAUSULA_RGPD_RESPALDO;
+    } catch (e) {
+      mostrarError();
+    }
+  }
+
+  $('btnGuardarNss').addEventListener('click', guardarNss);
+  $('btnSubirDni').addEventListener('click', () => $('inputDni').click());
+  $('inputDni').addEventListener('change', () => subirArchivo('dni_nie', 'inputDni', 'btnSubirDni', 'errDni', 'dni-nie'));
+  $('btnSubirBanco').addEventListener('click', () => $('inputBanco').click());
+  $('inputBanco').addEventListener('change', () => subirArchivo('certificado_bancario', 'inputBanco', 'btnSubirBanco', 'errBanco', 'certificado-bancario'));
+
+  init();
+})();
+</script>
+</body>
+</html>
