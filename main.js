@@ -10907,22 +10907,36 @@ async function prepararConfirmacionContratacionCandidato(silencioso) {
 // un aviso propio de la página y no puede ser silenciado por el navegador. Para no perder la
 // confirmación antes de mandar un correo real, el primer clic deja el botón en modo "¿Seguro?" y
 // solo al segundo clic (en los 6 segundos siguientes) se envía.
+// César (07/11/2026): "pulsas otra vez para enviar y no hace un carajo" — causa real: el "armado"
+// (primer clic ya hecho, a la espera del segundo) se guardaba en el dataset del propio botón del
+// DOM, pero esa fila se repinta sola en cuanto termina de cargar el historial de correos nada más
+// abrir la ficha (cargarHistorialCorreosCandidato → renderSeguimientoContactoCandidato, de forma
+// asíncrona) — eso sustituye el botón por uno nuevo y borra el armado antes de que dé tiempo al
+// segundo clic, así que el segundo clic se trataba otra vez como un primer clic (vuelve a salir el
+// aviso, nunca llega a enviar). Se guarda el armado aparte, por candidato, no en el botón.
+const _confirmacionesContratacionArmadas = {}; // { [candidatoId + ':' + accion]: expiraEnMs }
+function _confirmacionContratacionArmada(clave) {
+  const exp = _confirmacionesContratacionArmadas[clave];
+  if (exp && exp > Date.now()) return true;
+  delete _confirmacionesContratacionArmadas[clave];
+  return false;
+}
+function _armarConfirmacionContratacion(clave) {
+  _confirmacionesContratacionArmadas[clave] = Date.now() + 6000;
+}
 async function confirmarContratacionYEnviar(btn) {
   const c = candidatosCache.find((x) => x.id === currentCandidatoId);
   if (!c) return;
-  if (btn && btn.dataset.confirmando !== '1') {
-    const textoOriginal = btn.textContent;
-    btn.dataset.confirmando = '1';
-    btn.textContent = '¿Seguro? Pulsa otra vez para enviar';
+  const clave = c.id + ':enviar';
+  if (!_confirmacionContratacionArmada(clave)) {
+    _armarConfirmacionContratacion(clave);
+    if (btn && btn.tagName) btn.textContent = '¿Seguro? Pulsa otra vez para enviar';
     mostrarToast(`Vuelve a pulsar para enviar a ${c.nombre} el correo de confirmación de contratación y solicitud de documentación.`);
-    clearTimeout(btn._confirmTimeout);
-    btn._confirmTimeout = setTimeout(() => {
-      if (btn.dataset.confirmando === '1') { btn.dataset.confirmando = '0'; btn.textContent = textoOriginal; }
-    }, 6000);
     return;
   }
-  const textoOriginal = btn ? (btn._textoOriginal || btn.textContent) : null;
-  if (btn) { clearTimeout(btn._confirmTimeout); btn.dataset.confirmando = '0'; btn._textoOriginal = textoOriginal; btn.disabled = true; btn.textContent = 'Enviando…'; }
+  delete _confirmacionesContratacionArmadas[clave];
+  const textoOriginal = (btn && btn.tagName) ? btn.textContent : null;
+  if (btn && btn.tagName) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
     await prepararConfirmacionContratacionCandidato(true);
     await enviarCorreoGenericoCandidato();
@@ -10933,7 +10947,7 @@ async function confirmarContratacionYEnviar(btn) {
       mostrarToast(`❌ El correo NO se ha enviado — revisa el aviso rojo para ver el motivo exacto.`, false);
     }
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = textoOriginal; }
+    if (btn && btn.tagName) { btn.disabled = false; btn.textContent = textoOriginal; }
   }
 }
 // César: "si ya tenemos la documentación, ¿no se la tenemos que volver a pedir? [...] eso se tiene
@@ -10944,19 +10958,16 @@ async function confirmarContratacionYEnviar(btn) {
 async function marcarConfirmacionContratacionSinCorreo(btn) {
   const c = candidatosCache.find((x) => x.id === currentCandidatoId);
   if (!c) return;
-  if (btn && btn.dataset.confirmando !== '1') {
-    const textoOriginal = btn.textContent;
-    btn.dataset.confirmando = '1';
-    btn.textContent = '¿Seguro? Pulsa otra vez para marcar';
+  const clave = c.id + ':marcar';
+  if (!_confirmacionContratacionArmada(clave)) {
+    _armarConfirmacionContratacion(clave);
+    if (btn && btn.tagName) btn.textContent = '¿Seguro? Pulsa otra vez para marcar';
     mostrarToast(`Vuelve a pulsar para marcar el paso 4 de ${c.nombre} como hecho SIN enviar correo.`);
-    clearTimeout(btn._confirmTimeout);
-    btn._confirmTimeout = setTimeout(() => {
-      if (btn.dataset.confirmando === '1') { btn.dataset.confirmando = '0'; btn.textContent = textoOriginal; }
-    }, 6000);
     return;
   }
-  const textoOriginal = btn ? (btn._textoOriginal || btn.textContent) : null;
-  if (btn) { clearTimeout(btn._confirmTimeout); btn.dataset.confirmando = '0'; btn._textoOriginal = textoOriginal; btn.disabled = true; btn.textContent = 'Marcando…'; }
+  delete _confirmacionesContratacionArmadas[clave];
+  const textoOriginal = (btn && btn.tagName) ? btn.textContent : null;
+  if (btn && btn.tagName) { btn.disabled = true; btn.textContent = 'Marcando…'; }
   try {
     const { error } = await sb.from('candidatos').update({ confirmacion_contratacion_enviada_en: new Date().toISOString() }).eq('id', c.id);
     if (error) {
@@ -10968,7 +10979,7 @@ async function marcarConfirmacionContratacionSinCorreo(btn) {
     abrirCandidatoModal(c.id);
     mostrarToast(`✅ Paso 4 marcado para ${c.nombre} — ya puedes enviar la documentación a gestoría (paso 5).`);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = textoOriginal; }
+    if (btn && btn.tagName) { btn.disabled = false; btn.textContent = textoOriginal; }
   }
 }
 async function enviarCorreoGenericoCandidato() {
