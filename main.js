@@ -4670,9 +4670,32 @@ function leerCeldasSecuencia() {
   }
   return semanas;
 }
+// Horas de trabajo efectivo de un turno del catálogo, a partir de sus horarios reales
+// (hora_entrada_1/hora_salida_1, y también hora_entrada_2/hora_salida_2 si es 'Partido').
+// Resta el hueco intermedio de los turnos partidos — ese hueco no es tiempo trabajado. Soporta
+// turnos nocturnos que cruzan la medianoche (salida <= entrada del mismo tramo).
+function _horasTrabajadasTurno(t) {
+  if (!t || !t.hora_entrada_1) return 0;
+  const tramo = (entrada, salida) => {
+    if (!entrada || !salida) return 0;
+    const ini = minutosDesdeMedianoche(entrada);
+    let fin = minutosDesdeMedianoche(salida);
+    if (fin <= ini) fin += 1440; // cruza la medianoche
+    return (fin - ini) / 60;
+  };
+  let horas = tramo(t.hora_entrada_1, t.hora_salida_1);
+  if (t.tipo === 'Partido' && t.hora_entrada_2 && t.hora_salida_2) {
+    horas += tramo(t.hora_entrada_2, t.hora_salida_2);
+  }
+  return horas;
+}
 // Validador legal: descanso semanal mínimo de 2 días (Art. 37.1 ET + convenio hostelería Illes
-// Balears) y descanso mínimo de 12h entre el fin de una jornada y el inicio de la siguiente
-// (Art. 34.3 ET), calculado con los horarios reales del catálogo de turnos.
+// Balears), descanso mínimo de 12h entre el fin de una jornada y el inicio de la siguiente
+// (Art. 34.3 ET), jornada diaria máxima de 9h ordinarias (Art. 34.3 ET — un convenio colectivo
+// puede fijar otra distribución, respetando siempre el descanso entre jornadas; por eso este
+// aviso no se puede desactivar desde aquí, hay que revisar el convenio aplicable caso a caso) y
+// promedio semanal máximo de 40h en cómputo anual (Art. 34.1 ET) sobre las 3 semanas de la
+// secuencia. Todo calculado con los horarios reales del catálogo de turnos.
 function validarSecuenciaLegal(semanas) {
   const mensajes = [];
   const plano = [...semanas[0], ...semanas[1], ...semanas[2]];
@@ -4699,6 +4722,30 @@ function validarSecuenciaLegal(semanas) {
       mensajes.push(`Semana ${semanaN}, día ${diaN} → día siguiente: solo ${descansoHoras.toFixed(1)}h de descanso entre jornadas (mínimo legal: 12h, Art. 34.3 ET).`);
     }
   }
+  // Jornada diaria máxima (9h ordinarias, Art. 34.3 ET) por cada turno usado.
+  plano.forEach((cod, i) => {
+    if (!cod) return;
+    const t = cuadrantesCatalogoCache.find((x) => x.codigo === cod);
+    if (!t) return;
+    const horas = _horasTrabajadasTurno(t);
+    if (horas > 9) {
+      const semanaN = Math.floor(i / 7) + 1;
+      const diaN = (i % 7) + 1;
+      mensajes.push(`Semana ${semanaN}, día ${diaN} (turno ${cod}): ${horas.toFixed(1)}h de jornada — supera el máximo ordinario de 9h diarias (Art. 34.3 ET, salvo otra distribución pactada en convenio).`);
+    }
+  });
+  // Promedio semanal máximo (40h/semana en cómputo anual, Art. 34.1 ET) sobre las 3 semanas de
+  // la secuencia — solo orientativo a partir de estas 3 semanas, el cómputo legal real es anual.
+  semanas.forEach((semana, i) => {
+    const horasSemana = semana.reduce((acc, cod) => {
+      if (!cod) return acc;
+      const t = cuadrantesCatalogoCache.find((x) => x.codigo === cod);
+      return acc + (t ? _horasTrabajadasTurno(t) : 0);
+    }, 0);
+    if (horasSemana > 40) {
+      mensajes.push(`Semana ${i + 1}: ${horasSemana.toFixed(1)}h de jornada — supera el promedio máximo de 40h semanales (Art. 34.1 ET, cómputo anual; esta secuencia de 3 semanas es orientativa).`);
+    }
+  });
   return { ok: mensajes.length === 0, mensajes };
 }
 async function guardarSecuencia(e) {
