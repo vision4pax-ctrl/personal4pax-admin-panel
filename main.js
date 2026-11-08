@@ -1730,10 +1730,15 @@ function verDocumentoFormularioNuevaPestana(id) {
   }
   generarDocumentoFormularioPDFBlob(s)
     .then((blob) => {
-      const url = URL.createObjectURL(blob);
-      if (ventana && !ventana.closed) ventana.location.href = url;
-      else window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      if (ventana && !ventana.closed) {
+        const url = ventana.URL.createObjectURL(blob);
+        ventana.location.href = url;
+        setTimeout(() => { try { ventana.URL.revokeObjectURL(url); } catch (err) {} }, 60000);
+      } else {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
     })
     .catch((e) => {
       if (ventana && !ventana.closed) ventana.document.body.innerHTML = `<p style="font-family:Arial,sans-serif;color:#b91c1c;padding:40px;">No se pudo generar el PDF: ${e.message}</p>`;
