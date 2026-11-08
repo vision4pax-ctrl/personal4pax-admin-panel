@@ -4689,15 +4689,19 @@ function _horasTrabajadasTurno(t) {
   }
   return horas;
 }
-// Validador legal: descanso semanal mínimo de 2 días (Art. 37.1 ET + convenio hostelería Illes
-// Balears), descanso mínimo de 12h entre el fin de una jornada y el inicio de la siguiente
-// (Art. 34.3 ET), jornada diaria máxima de 9h ordinarias (Art. 34.3 ET — un convenio colectivo
-// puede fijar otra distribución, respetando siempre el descanso entre jornadas; por eso este
-// aviso no se puede desactivar desde aquí, hay que revisar el convenio aplicable caso a caso) y
-// promedio semanal máximo de 40h en cómputo anual (Art. 34.1 ET) sobre las 3 semanas de la
-// secuencia. Todo calculado con los horarios reales del catálogo de turnos.
+// Validador legal. Dos niveles:
+// - mensajes (BLOQUEAN el guardado): descanso semanal mínimo de 2 días (Art. 37.1 ET + convenio
+//   hostelería Illes Balears) y descanso mínimo de 12h entre el fin de una jornada y el inicio de
+//   la siguiente (Art. 34.3 ET). Son límites fijos, no dependen del convenio aplicable.
+// - avisos (NO bloquean, solo informan): jornada diaria máxima de 9h ordinarias (Art. 34.3 ET —
+//   un convenio colectivo puede pactar otra distribución) y promedio semanal máximo de 40h en
+//   cómputo anual (Art. 34.1 ET) sobre las 3 semanas de la secuencia (orientativo, el cómputo
+//   legal real es anual). Se dejan como aviso para no impedir guardar un cuadrante que puede ser
+//   legal según el convenio pactado en ese hotel.
+// Todo calculado con los horarios reales del catálogo de turnos.
 function validarSecuenciaLegal(semanas) {
   const mensajes = [];
+  const avisos = [];
   const plano = [...semanas[0], ...semanas[1], ...semanas[2]];
   semanas.forEach((semana, i) => {
     const descansos = semana.filter((c) => !c).length;
@@ -4722,7 +4726,8 @@ function validarSecuenciaLegal(semanas) {
       mensajes.push(`Semana ${semanaN}, día ${diaN} → día siguiente: solo ${descansoHoras.toFixed(1)}h de descanso entre jornadas (mínimo legal: 12h, Art. 34.3 ET).`);
     }
   }
-  // Jornada diaria máxima (9h ordinarias, Art. 34.3 ET) por cada turno usado.
+  // Jornada diaria máxima (9h ordinarias, Art. 34.3 ET) por cada turno usado — AVISO, no bloquea
+  // (un convenio colectivo puede pactar otra distribución).
   plano.forEach((cod, i) => {
     if (!cod) return;
     const t = cuadrantesCatalogoCache.find((x) => x.codigo === cod);
@@ -4731,11 +4736,12 @@ function validarSecuenciaLegal(semanas) {
     if (horas > 9) {
       const semanaN = Math.floor(i / 7) + 1;
       const diaN = (i % 7) + 1;
-      mensajes.push(`Semana ${semanaN}, día ${diaN} (turno ${cod}): ${horas.toFixed(1)}h de jornada — supera el máximo ordinario de 9h diarias (Art. 34.3 ET, salvo otra distribución pactada en convenio).`);
+      avisos.push(`Semana ${semanaN}, día ${diaN} (turno ${cod}): ${horas.toFixed(1)}h de jornada — supera el máximo ordinario de 9h diarias (Art. 34.3 ET, salvo otra distribución pactada en convenio).`);
     }
   });
   // Promedio semanal máximo (40h/semana en cómputo anual, Art. 34.1 ET) sobre las 3 semanas de
-  // la secuencia — solo orientativo a partir de estas 3 semanas, el cómputo legal real es anual.
+  // la secuencia — AVISO, no bloquea (es orientativo a partir de estas 3 semanas, el cómputo
+  // legal real es anual).
   semanas.forEach((semana, i) => {
     const horasSemana = semana.reduce((acc, cod) => {
       if (!cod) return acc;
@@ -4743,10 +4749,10 @@ function validarSecuenciaLegal(semanas) {
       return acc + (t ? _horasTrabajadasTurno(t) : 0);
     }, 0);
     if (horasSemana > 40) {
-      mensajes.push(`Semana ${i + 1}: ${horasSemana.toFixed(1)}h de jornada — supera el promedio máximo de 40h semanales (Art. 34.1 ET, cómputo anual; esta secuencia de 3 semanas es orientativa).`);
+      avisos.push(`Semana ${i + 1}: ${horasSemana.toFixed(1)}h de jornada — supera el promedio máximo de 40h semanales (Art. 34.1 ET, cómputo anual; esta secuencia de 3 semanas es orientativa).`);
     }
   });
-  return { ok: mensajes.length === 0, mensajes };
+  return { ok: mensajes.length === 0, mensajes, avisos };
 }
 async function guardarSecuencia(e) {
   e.preventDefault();
@@ -4756,7 +4762,9 @@ async function guardarSecuencia(e) {
     $('secValidacion').innerHTML = '⚠️ No se puede guardar — incumple el validador legal:<br>' + validacion.mensajes.map((m) => '• ' + m).join('<br>');
     return;
   }
-  $('secValidacion').innerHTML = '';
+  $('secValidacion').innerHTML = (validacion.avisos && validacion.avisos.length)
+    ? '⚠️ Aviso (no bloquea el guardado — revisar convenio aplicable):<br>' + validacion.avisos.map((m) => '• ' + m).join('<br>')
+    : '';
   const payload = {
     nombre: $('secNombre').value.trim(),
     departamento: $('secDepartamento').value.trim() || null,
@@ -4874,7 +4882,11 @@ async function renderCuadranteSecuenciaEstado() {
   el.innerHTML = cuadranteSecuenciaEstadoCache
     .map(({ persona, codigos }) => {
       const validacion = validarSecuenciaLegal(codigos);
-      const badge = validacion.ok ? '<span class="badge2 b-emerald">✅ Cumple</span>' : `<span class="badge2 b-rose">🚨 ${validacion.mensajes.length} incidencia(s)</span>`;
+      const badge = !validacion.ok
+        ? `<span class="badge2 b-rose">🚨 ${validacion.mensajes.length} incidencia(s)</span>`
+        : (validacion.avisos && validacion.avisos.length)
+          ? `<span class="badge2 b-amber">⚠️ ${validacion.avisos.length} aviso(s)</span>`
+          : '<span class="badge2 b-emerald">✅ Cumple</span>';
       return `<tr><td>${persona.nombre}</td><td>${persona.departamento || '—'}</td><td>${badge}</td><td><button type="button" class="btn btn-secondary btn-sm" onclick="abrirModalSecuenciaIndividual('${persona.id}')">✏️ Diseñar / corregir secuencia</button></td></tr>`;
     })
     .join('') || '<tr><td colspan="4" class="sub-c" style="text-align:center;padding:14px;">Sin personas trabajadoras activas.</td></tr>';
@@ -4919,7 +4931,9 @@ async function guardarSecuenciaIndividual() {
     $('secIndValidacion').innerHTML = '⚠️ No se puede guardar — incumple el validador legal:<br>' + validacion.mensajes.map((m) => '• ' + m).join('<br>');
     return;
   }
-  $('secIndValidacion').innerHTML = '';
+  $('secIndValidacion').innerHTML = (validacion.avisos && validacion.avisos.length)
+    ? '⚠️ Aviso (no bloquea el guardado — revisar convenio aplicable):<br>' + validacion.avisos.map((m) => '• ' + m).join('<br>')
+    : '';
   const registros = [];
   for (let w = 0; w < 3; w++) {
     for (let d = 0; d < 7; d++) {
