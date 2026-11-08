@@ -1513,10 +1513,6 @@ body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:800px;margin
 .signature-box{margin-top:32px;border:2px solid #166534;border-radius:10px;padding:16px 20px;background:#ecfdf5;}
 .badge-signed{display:inline-block;background:#166534;color:#fff;font-size:11px;font-weight:bold;padding:3px 10px;border-radius:999px;margin-bottom:8px;}
 .footer-note{margin-top:26px;font-size:10px;color:#64748b;}
-.print-bar{max-width:800px;margin:26px auto 0;padding:14px 24px 0;text-align:right;border-top:1px solid #cbd5e1;}
-.print-bar button{font-family:Arial,sans-serif;background:#fff;color:#475569;border:1px solid #cbd5e1;padding:7px 14px;border-radius:6px;font-size:12.5px;cursor:pointer;}
-.print-bar .print-hint{display:block;font-size:11px;color:#94a3b8;margin-top:6px;}
-@media print{ .print-bar{display:none;} body{margin:0;padding:20px;} }
 </style></head><body>
 <div class="letterhead"><div class="brand">Personal4Pax</div><div style="text-align:right;font-size:12px;color:#475569;">Documento generado automáticamente<br>${fechaSolicitud}</div></div>
 <div class="doc-title">${plantilla.nombre || s.plantilla_id}</div>
@@ -1533,13 +1529,6 @@ body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:800px;margin
 ${detalleHtml}
 ${firmaBloque}
 <p class="footer-note">Documento generado por Personal4Pax a partir del formulario digital firmado por la persona trabajadora. Sustituye a la versión en papel a todos los efectos internos y de tramitación con la gestoría laboral.</p>
-<!-- César (08/11/2026): "primero abrir/ver, la opción de imprimir después" — este documento ya SE
-     ESTÁ VIENDO (iframe, pestaña nueva o archivo descargado) antes de llegar aquí abajo; imprimir
-     queda como paso aparte y opcional al final, nunca como lo primero que se ofrece. -->
-<div class="print-bar">
-  <button type="button" onclick="window.print()">🖨️ Imprimir (opcional)</button>
-  <span class="print-hint">Para guardarlo como PDF: en el cuadro de impresión, elige "Guardar como PDF" como destino/impresora.</span>
-</div>
 </body></html>`;
 }
 
@@ -1580,10 +1569,11 @@ function verFormularioSolicitud(id) {
       <input type="text" id="verFormularioDestinatarioCC" placeholder="copia1@ejemplo.es, copia2@ejemplo.es">
       <p class="sub-c" style="margin:4px 0 0;">Varias direcciones separadas por coma. Precargada con RR.HH./Dirección por defecto — puedes editarla o vaciarla.</p>
     </div>
+    ${(s.estado === 'enviado_proveedor' || s.estado === 'gestoria') ? `<p class="sub-c" style="margin:10px 0 0;color:#166534;font-weight:600;">✅ Ya enviado${s.destinatario_email ? ' a ' + s.destinatario_email : ''}${s.destinatario_cc_email ? ' · CC: ' + s.destinatario_cc_email : ''} — si vuelves a pulsar "Enviar", se reenviará de nuevo.</p>` : ''}
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
       <button type="button" class="btn btn-sm" onclick="reenviarFormularioADestinatario('${s.id}')">📧 Enviar a este destinatario</button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="verDocumentoFormularioNuevaPestana('${s.id}')">↗ Abrir en pestaña nueva</button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="descargarDocumentoFormulario('${s.id}')">⬇ Descargar</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="verDocumentoFormularioNuevaPestana('${s.id}')">📄 Abrir PDF</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="descargarDocumentoFormulario('${s.id}')">⬇ Descargar PDF</button>
     </div>`;
   $('verFormularioDocFrame').srcdoc = generarDocumentoFormularioHTML(s);
   poblarDestinatarioVerFormulario(s);
@@ -1705,13 +1695,50 @@ async function verAdjuntoFormulario(id) {
   await registrarAuditoria('Formularios', 'Visualización de adjunto', s.adjunto_nombre || s.adjunto_url);
 }
 
+// César (08/11/2026): "quiero que se abra como PDF y luego dentro del PDF puedas coger la opción de
+// imprimir" — un PDF real generado en el navegador (html2pdf.js, cargado en index.html), no el HTML
+// con un botón "Imprimir" de antes. Así el visor de PDF del propio navegador da ya, de serie, los
+// botones de guardar/descargar e imprimir — no hace falta ningún paso intermedio.
+const PDF_OPCIONES_DOCUMENTO = {
+  margin: 10,
+  image: { type: 'jpeg', quality: 0.95 },
+  html2canvas: { scale: 2, useCORS: true },
+  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+  pagebreak: { mode: ['css', 'legacy'] }
+};
+
+function nombreArchivoDocumentoFormulario(s) {
+  const plantilla = s.formularios_plantillas || {};
+  const t = s.personas_trabajadoras || {};
+  return `${(plantilla.nombre || s.plantilla_id).replace(/[^\w]+/g, '_').slice(0, 60)}_${(t.nombre || '').replace(/[^\w]+/g, '_')}.pdf`;
+}
+
+function generarDocumentoFormularioPDFBlob(s) {
+  return html2pdf().set(PDF_OPCIONES_DOCUMENTO).from(generarDocumentoFormularioHTML(s), 'string').outputPdf('blob');
+}
+
+// Abre una pestaña nueva YA (respuesta directa al clic, para que el navegador no la bloquee como
+// pop-up) y la navega al PDF en cuanto está generado — evita el fallo de "no funciona" que daba
+// window.open() cuando se llamaba después de un await.
 function verDocumentoFormularioNuevaPestana(id) {
   const s = formulariosSolicitudesCache.find((x) => x.id === id);
   if (!s) return;
-  const blob = new Blob([generarDocumentoFormularioHTML(s)], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  const ventana = window.open('', '_blank');
+  if (ventana) {
+    ventana.document.title = 'Generando PDF…';
+    ventana.document.write('<p style="font-family:Arial,sans-serif;color:#64748b;padding:40px;text-align:center;">Generando PDF…</p>');
+  }
+  generarDocumentoFormularioPDFBlob(s)
+    .then((blob) => {
+      const url = URL.createObjectURL(blob);
+      if (ventana && !ventana.closed) ventana.location.href = url;
+      else window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    })
+    .catch((e) => {
+      if (ventana && !ventana.closed) ventana.document.body.innerHTML = `<p style="font-family:Arial,sans-serif;color:#b91c1c;padding:40px;">No se pudo generar el PDF: ${e.message}</p>`;
+      mostrarToast('No se pudo generar el PDF: ' + e.message, false);
+    });
 }
 
 function descargarDocumentoFormulario(id) {
@@ -1719,17 +1746,15 @@ function descargarDocumentoFormulario(id) {
   if (!s) return;
   const plantilla = s.formularios_plantillas || {};
   const t = s.personas_trabajadoras || {};
-  const blob = new Blob([generarDocumentoFormularioHTML(s)], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${(plantilla.nombre || s.plantilla_id).replace(/[^\w]+/g, '_').slice(0, 60)}_${(t.nombre || '').replace(/[^\w]+/g, '_')}.html`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-  registrarAuditoria('Formularios', 'Descarga de documento', `${plantilla.nombre || s.plantilla_id} — ${t.nombre || '—'}`);
-  mostrarToast('Documento descargado ✓ (ábrelo para verlo o imprimirlo/guardarlo como PDF)', true);
+  html2pdf()
+    .set({ ...PDF_OPCIONES_DOCUMENTO, filename: nombreArchivoDocumentoFormulario(s) })
+    .from(generarDocumentoFormularioHTML(s), 'string')
+    .save()
+    .then(() => {
+      registrarAuditoria('Formularios', 'Descarga de documento', `${plantilla.nombre || s.plantilla_id} — ${t.nombre || '—'}`);
+      mostrarToast('PDF descargado ✓', true);
+    })
+    .catch((e) => mostrarToast('No se pudo generar el PDF: ' + e.message, false));
 }
 
 function verCatalogoFormularios() {

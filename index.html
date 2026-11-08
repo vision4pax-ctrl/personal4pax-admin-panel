@@ -102,7 +102,12 @@
   .kpi .t{font-size:10.5px;color:var(--slate-500);line-height:1.25;}
   .kpi .v{font-size:17px;font-weight:800;color:var(--ink-900);}
   table{width:100%;border-collapse:collapse;font-size:12.5px;}
-  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--slate-500);padding:8px 10px;border-bottom:2px solid var(--slate-200);white-space:nowrap;}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--slate-500);padding:8px 10px;border-bottom:2px solid var(--slate-200);white-space:nowrap;position:sticky;top:0;background:#fff;z-index:2;}
+  /* César (08/11/2026): "en todos los buscadores... todas estas líneas estén fijas" — la cabecera de
+     columnas de CUALQUIER tabla se queda a la vista al hacer scroll de la lista, en vez de desaparecer. */
+  .list-scroll{max-height:62vh;overflow:auto;border-top:1px solid var(--slate-200);}
+  .list-scroll table{margin:0;}
+  .list-scroll-bar{position:sticky;top:0;z-index:3;background:#fff;padding:10px 0;margin:0;}
   td{padding:9px 10px;border-bottom:1px solid var(--slate-100);vertical-align:middle;}
   tr:last-child td{border-bottom:none;}
   tr.clickable{cursor:pointer;}
@@ -338,12 +343,14 @@
               <button type="button" class="btn btn-sm" id="btnNuevoEmpleado">+ Nueva persona trabajadora</button>
             </div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
+          <div class="list-scroll-bar" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
             <input type="text" id="empBuscador" placeholder="🔍 Buscar por nombre o apellido…" style="margin:0;flex:1;min-width:200px;">
             <select id="empFiltroDepartamento" style="margin:0;width:200px;"><option value="">Todos los departamentos</option></select>
           </div>
+          <div class="list-scroll">
           <table><thead><tr><th>Código</th><th>Nombre</th><th>Puesto</th><th>Departamento</th><th>Supervisor</th><th>Centro</th><th>Rol</th><th>Incorporación</th><th>Estado</th><th>Hoy</th></tr></thead>
           <tbody id="listaEmpleados"></tbody></table>
+          </div>
         </div>
       </section>
 
@@ -3169,6 +3176,7 @@
 <script src="supabase.js"></script>
 <script src="xlsx.min.js"></script>
 <script src="qrcode.min.js"></script>
+<script src="html2pdf.bundle.min.js"></script>
 <script src="main.js"></script>
 </body>
 </html>
