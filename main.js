@@ -2976,8 +2976,17 @@ function uniformidadFichaBlockHTML(p, entregas, misFormularios) {
     .map(
       (e) => `
     <div class="row-item">
-      <div><b>${e.item}</b><br><span class="sub-c">${e.tipo || '—'} · cantidad ${e.cantidad || 1}</span></div>
-      <input type="text" id="tallaEpi_${e.id}" value="${e.talla ? String(e.talla).replace(/"/g, '&quot;') : ''}" placeholder="Talla estimada" style="max-width:140px;margin:0;" ${soloLectura ? 'disabled' : ''}>
+      <div><b>${e.item}</b><br><span class="sub-c">${e.tipo || '—'}</span></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div>
+          <input type="number" min="1" step="1" id="cantidadEpi_${e.id}" value="${e.cantidad || 1}" placeholder="Cant." style="max-width:64px;margin:0;" ${soloLectura ? 'disabled' : ''}>
+          <div class="sub-c" style="text-align:center;margin-top:2px;">cantidad</div>
+        </div>
+        <div>
+          <input type="text" id="tallaEpi_${e.id}" value="${e.talla ? String(e.talla).replace(/"/g, '&quot;') : ''}" placeholder="Talla estimada" style="max-width:140px;margin:0;" ${soloLectura ? 'disabled' : ''}>
+          <div class="sub-c" style="text-align:center;margin-top:2px;">talla</div>
+        </div>
+      </div>
     </div>`
     )
     .join('');
@@ -3038,9 +3047,18 @@ async function guardarTallasEpiFicha(trabajadorId, btn) {
   const textoOriginal = btn ? btn.textContent : null;
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
   try {
-    const inputs = document.querySelectorAll('[id^="tallaEpi_"]');
-    await Promise.all(Array.from(inputs).map((inp) => sb.from('epi_entregas').update({ talla: inp.value.trim() || null }).eq('id', inp.id.replace('tallaEpi_', ''))));
-    mostrarToast('Tallas guardadas ✓', true);
+    const inputsTalla = document.querySelectorAll('[id^="tallaEpi_"]');
+    await Promise.all(
+      Array.from(inputsTalla).map((inp) => {
+        const entregaId = inp.id.replace('tallaEpi_', '');
+        const inpCantidad = document.getElementById('cantidadEpi_' + entregaId);
+        const cantidad = inpCantidad ? Math.max(1, parseInt(inpCantidad.value, 10) || 1) : undefined;
+        const patch = { talla: inp.value.trim() || null };
+        if (cantidad !== undefined) patch.cantidad = cantidad;
+        return sb.from('epi_entregas').update(patch).eq('id', entregaId);
+      })
+    );
+    mostrarToast('Tallas y cantidades guardadas ✓', true);
     await renderFichaAdmin(trabajadorId);
   } finally {
     if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = textoOriginal; }
