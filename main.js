@@ -455,7 +455,7 @@ async function renderVistaTrabajadorDocumentos() {
     (data || [])
       .map(
         (d) =>
-          `<tr><td>${d.nombre}${d.adjunto_url ? `<br><a href="#" data-ver-adjunto-doc-admin="${d.adjunto_url}" style="font-size:11px;">📎 Ver adjunto</a>` : ''}</td><td class="sub-c">${d.tipo}</td><td>${fechaCorta(d.fecha)}</td><td>${badgeEstado(d.estado)}</td></tr>`
+          `<tr><td>${d.nombre}${d.adjunto_url ? `<br><a href="#" data-ver-adjunto-doc-admin="${d.adjunto_url}" data-ver-adjunto-doc-admin-nombre="${(d.nombre || '').replace(/"/g, '&quot;')}" style="font-size:11px;">📎 Ver adjunto</a>` : ''}</td><td class="sub-c">${d.tipo}</td><td>${fechaCorta(d.fecha)}</td><td>${badgeEstado(d.estado)}</td></tr>`
       )
       .join('') || '<tr><td colspan="4" class="sub-c" style="text-align:center;padding:14px;">Sin documentos registrados para esta persona.</td></tr>';
   body.querySelectorAll('[data-ver-adjunto-doc-admin]').forEach((a) =>
@@ -463,7 +463,7 @@ async function renderVistaTrabajadorDocumentos() {
       ev.preventDefault();
       const { data: signed, error } = await sb.storage.from('formularios-adjuntos').createSignedUrl(a.dataset.verAdjuntoDocAdmin, 3600);
       if (error) { mostrarToast('No se pudo abrir el adjunto: ' + error.message, false); return; }
-      window.open(signed.signedUrl, '_blank');
+      abrirVisorDocumento(signed.signedUrl, `📎 ${a.dataset.verAdjuntoDocAdminNombre || 'Documento'}`, _esImagenPorNombre(a.dataset.verAdjuntoDocAdmin));
     })
   );
 }
@@ -1691,7 +1691,7 @@ async function verAdjuntoFormulario(id) {
     mostrarToast('No se pudo abrir el adjunto: ' + error.message, false);
     return;
   }
-  window.open(data.signedUrl, '_blank');
+  abrirVisorDocumento(data.signedUrl, `📎 ${s.adjunto_nombre || 'Documento'}`, _esImagenPorNombre(s.adjunto_nombre || s.adjunto_url));
   await registrarAuditoria('Formularios', 'Visualización de adjunto', s.adjunto_nombre || s.adjunto_url);
 }
 
@@ -3443,7 +3443,7 @@ async function renderFichaAdmin(id) {
       <table><thead><tr><th>Documento</th><th>Tipo</th><th>Fecha</th><th>Estado</th></tr></thead>
       <tbody>${
         fichaAdminDocumentosCache.length
-          ? fichaAdminDocumentosCache.map((d) => `<tr><td>${d.nombre}${d.adjunto_url ? `<br><a href="#" data-ver-adjunto-ficha="${d.adjunto_url}" style="font-size:11px;">📎 Ver adjunto</a>` : ''}</td><td class="sub-c">${d.tipo}</td><td>${fechaCorta(d.fecha)}</td><td>${badgeEstado(d.estado)}</td></tr>`).join('')
+          ? fichaAdminDocumentosCache.map((d) => `<tr><td>${d.nombre}${d.adjunto_url ? `<br><a href="#" data-ver-adjunto-ficha="${d.adjunto_url}" data-ver-adjunto-ficha-nombre="${(d.nombre || '').replace(/"/g, '&quot;')}" style="font-size:11px;">📎 Ver adjunto</a>` : ''}</td><td class="sub-c">${d.tipo}</td><td>${fechaCorta(d.fecha)}</td><td>${badgeEstado(d.estado)}</td></tr>`).join('')
           : '<tr><td colspan="4" class="sub-c">Sin documentos registrados para esta persona.</td></tr>'
       }</tbody></table>
       <form onsubmit="subirNominaFicha(event,'${p.id}')" style="padding:12px 16px;border-top:1px solid var(--slate-100);">
@@ -3461,7 +3461,7 @@ async function renderFichaAdmin(id) {
       ev.preventDefault();
       const { data: signed, error } = await sb.storage.from('formularios-adjuntos').createSignedUrl(a.dataset.verAdjuntoFicha, 3600);
       if (error) { mostrarToast('No se pudo abrir el adjunto: ' + error.message, false); return; }
-      window.open(signed.signedUrl, '_blank');
+      abrirVisorDocumento(signed.signedUrl, `📎 ${a.dataset.verAdjuntoFichaNombre || 'Documento'}`, _esImagenPorNombre(a.dataset.verAdjuntoFicha));
     })
   );
 }
@@ -6809,7 +6809,7 @@ async function renderFichaEmpresa(id) {
       <table><thead><tr><th>Documento</th><th>Categoría</th><th>Emisión</th><th>Caducidad</th><th>Estado</th><th>Responsable</th></tr></thead>
       <tbody>${
         (documentos || [])
-          .map((d) => `<tr><td>${d.nombre}${d.adjunto_url ? `<br><a href="#" data-ver-adjunto-empresa="${d.adjunto_url}" style="font-size:11px;">📎 Ver adjunto</a>` : ''}</td><td class="sub-c">${d.categoria}</td><td>${d.fecha_emision ? fechaCorta(d.fecha_emision) : '—'}</td><td>${d.fecha_caducidad ? fechaCorta(d.fecha_caducidad) : '—'}</td><td>${badgeEstado(d.estado)}</td><td class="sub-c">${d.responsable || '—'}</td></tr>`)
+          .map((d) => `<tr><td>${d.nombre}${d.adjunto_url ? `<br><a href="#" data-ver-adjunto-empresa="${d.adjunto_url}" data-ver-adjunto-empresa-nombre="${(d.nombre || '').replace(/"/g, '&quot;')}" style="font-size:11px;">📎 Ver adjunto</a>` : ''}</td><td class="sub-c">${d.categoria}</td><td>${d.fecha_emision ? fechaCorta(d.fecha_emision) : '—'}</td><td>${d.fecha_caducidad ? fechaCorta(d.fecha_caducidad) : '—'}</td><td>${badgeEstado(d.estado)}</td><td class="sub-c">${d.responsable || '—'}</td></tr>`)
           .join('') || '<tr><td colspan="6" class="sub-c" style="text-align:center;padding:14px;">Sin documentos registrados.</td></tr>'
       }</tbody></table>
       <form onsubmit="guardarDocumentoEmpresa(event,'${e.id}')" style="padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
@@ -6861,7 +6861,7 @@ async function renderFichaEmpresa(id) {
       ev.preventDefault();
       const { data: signed, error } = await sb.storage.from('formularios-adjuntos').createSignedUrl(a.dataset.verAdjuntoEmpresa, 3600);
       if (error) { mostrarToast('No se pudo abrir el adjunto: ' + error.message, false); return; }
-      window.open(signed.signedUrl, '_blank');
+      abrirVisorDocumento(signed.signedUrl, `📎 ${a.dataset.verAdjuntoEmpresaNombre || 'Documento'}`, _esImagenPorNombre(a.dataset.verAdjuntoEmpresa));
     })
   );
 }
