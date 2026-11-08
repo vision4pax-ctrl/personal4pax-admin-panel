@@ -28,7 +28,9 @@ const BADGE_ESTADO = {
   'propuesta pendiente': 'b-slate', 'solicitud enviada a la mutua': 'b-amber', 'enviada a prevenlia': 'b-amber',
   'cita confirmada': 'b-indigo', 'firma pendiente': 'b-indigo', 'cita aprobada': 'b-sky', 'realizada': 'b-emerald',
   // Devoluciones de EPI — 3er estado (migración 0084)
-  'enviado_gestoria': 'b-emerald'
+  'enviado_gestoria': 'b-emerald',
+  // Entrega inicial de uniformidad y EPI al alta (f18), reenviada a la tienda colaboradora
+  'enviado_proveedor': 'b-emerald'
 };
 function badgeEstado(estado) {
   const key = (estado || '').toLowerCase();
@@ -1366,6 +1368,7 @@ const STATUS_FORMULARIOS = {
   firmado: 'Firmado por la persona trabajadora',
   rrhh: 'Notificado a RR.HH.',
   gestoria: 'Reenviado a gestoría',
+  enviado_proveedor: 'Enviado a la tienda colaboradora de uniformidad',
   aprobado: 'Formación aprobada por RR.HH.'
 };
 const BLOQUE_ICONOS = {
@@ -1397,6 +1400,7 @@ function formularioAccionHTML(s) {
     return `<button type="button" class="btn btn-sm" onclick="enviarFormularioGestoria('${s.id}')">📧 Reenviar a gestoría</button>`;
   }
   if (s.estado === 'gestoria') return '<span class="badge2 b-emerald">Enviado ✓</span>';
+  if (s.estado === 'enviado_proveedor') return '<span class="badge2 b-emerald">Enviado a la tienda ✓</span>';
   if (s.estado === 'aprobado' && esFormacion) return `<button type="button" class="btn btn-sm" onclick="abrirProgramarFormacion('${s.id}')">🗓️ Programar fecha y hora</button>`;
   if (s.estado === 'aprobado') return '<span class="badge2 b-emerald">✓ Gestionado</span>';
   return '<span class="sub-c">—</span>';
@@ -1537,6 +1541,7 @@ function verFormularioSolicitud(id) {
   if (!s) return;
   const plantilla = s.formularios_plantillas || {};
   const t = s.personas_trabajadoras || {};
+  const esUniformidad = plantilla.bloque === 'Uniformidad y EPI';
   const adjuntoHtml = s.adjunto_url
     ? `<div class="card card-pad" style="margin-top:10px;">
         <b style="font-size:12.5px;">📎 Documento adjuntado por la persona trabajadora</b>
@@ -1562,7 +1567,7 @@ function verFormularioSolicitud(id) {
       <select id="verFormularioDestinatarioSelect" onchange="cambiarDestinatarioVerFormulario()"></select>
       <input type="text" id="verFormularioDestinatarioNuevo" placeholder="nueva-direccion@ejemplo.es" style="display:none;">
       <label style="display:none;align-items:center;gap:6px;font-size:11.5px;font-weight:400;color:var(--slate-600,#475569);" id="verFormularioGestoriaCheckWrap">
-        <input type="checkbox" id="verFormularioEsGestoriaCheck" checked style="width:auto;margin:0;"> Es la gestoría (colaborador habitual) — recordar como destinatario predeterminado
+        <input type="checkbox" id="verFormularioEsGestoriaCheck" checked style="width:auto;margin:0;"> ${esUniformidad ? 'Es nuestra tienda/proveedor de uniformidad habitual — recordar como destinatario predeterminado' : 'Es la gestoría (colaborador habitual) — recordar como destinatario predeterminado'}
       </label>
       <label style="margin:10px 0 4px;">CC (copia) — opcional</label>
       <input type="text" id="verFormularioDestinatarioCC" placeholder="copia1@ejemplo.es, copia2@ejemplo.es">
@@ -1604,7 +1609,8 @@ async function marcarFormularioLeidoYNotificar(s) {
 async function poblarDestinatarioVerFormulario(s) {
   const sel = $('verFormularioDestinatarioSelect');
   if (!sel) return;
-  const predeterminado = formulariosDestinatariosCache.find((d) => d.predeterminado_gestoria);
+  const esUniformidad = s.formularios_plantillas && s.formularios_plantillas.bloque === 'Uniformidad y EPI';
+  const predeterminado = formulariosDestinatariosCache.find((d) => (esUniformidad ? d.predeterminado_uniformidad : d.predeterminado_gestoria));
   const actual = s.destinatario_email || (predeterminado ? predeterminado.email : null);
   sel.innerHTML =
     formulariosDestinatariosCache.map((d) => `<option value="${d.email}" ${d.email === actual ? 'selected' : ''}>${d.etiqueta || d.email}</option>`).join('') +
@@ -1637,6 +1643,11 @@ function cambiarDestinatarioVerFormulario() {
 async function reenviarFormularioADestinatario(id) {
   const s = formulariosSolicitudesCache.find((x) => x.id === id);
   if (!s) return;
+  // César: mismo modal/flujo para cualquier trámite firmado, pero el bloque "Uniformidad y EPI"
+  // (f18, entrega inicial al alta) va a una tienda/proveedor colaborador, no a gestoría — RPC y
+  // destinatario predeterminado propios (enviar_formulario_a_destinatario y predeterminado_gestoria
+  // quedan intactos para el resto de trámites).
+  const esUniformidad = s.formularios_plantillas && s.formularios_plantillas.bloque === 'Uniformidad y EPI';
   const sel = $('verFormularioDestinatarioSelect');
   let email = sel ? sel.value : null;
   if (email === '__nuevo__') {
@@ -1645,29 +1656,31 @@ async function reenviarFormularioADestinatario(id) {
       mostrarToast('⚠️ Indica la dirección de correo del destinatario', false);
       return;
     }
-    const marcarGestoria = $('verFormularioEsGestoriaCheck').checked;
-    if (marcarGestoria) {
-      await sb.from('formularios_destinatarios').update({ predeterminado_gestoria: false }).eq('hotel_id', usuarioActual.hotel_id);
+    const marcarPredeterminado = $('verFormularioEsGestoriaCheck').checked;
+    if (marcarPredeterminado) {
+      await sb.from('formularios_destinatarios').update(esUniformidad ? { predeterminado_uniformidad: false } : { predeterminado_gestoria: false }).eq('hotel_id', usuarioActual.hotel_id);
     }
-    await sb.from('formularios_destinatarios').insert({
+    const nuevoDestinatario = {
       hotel_id: usuarioActual.hotel_id,
       email,
-      etiqueta: marcarGestoria ? 'Gestoría (colaborador habitual)' : email,
-      predeterminado_gestoria: marcarGestoria
-    });
+      etiqueta: marcarPredeterminado ? (esUniformidad ? 'Proveedor de uniformidad (colaborador habitual)' : 'Gestoría (colaborador habitual)') : email
+    };
+    if (esUniformidad) nuevoDestinatario.predeterminado_uniformidad = marcarPredeterminado;
+    else nuevoDestinatario.predeterminado_gestoria = marcarPredeterminado;
+    await sb.from('formularios_destinatarios').insert(nuevoDestinatario);
   }
   const cc = ($('verFormularioDestinatarioCC') ? $('verFormularioDestinatarioCC').value : '').trim();
   // RPC security definer (0061/0071): actualiza el estado/destinatario Y encola el envío real por
   // correo (Resend) en un solo paso, con comprobación de que el formulario es de tu hotel. p_cc_email
   // añade la(s) dirección(es) en copia — mismo criterio que forwardToGestoria() en el HTML original.
-  const { error } = await sb.rpc('enviar_formulario_a_destinatario', {
+  const { error } = await sb.rpc(esUniformidad ? 'enviar_formulario_a_proveedor_uniformidad' : 'enviar_formulario_a_destinatario', {
     p_solicitud_id: id,
     p_destinatario_email: email,
     p_cc_email: cc || null
   });
   mostrarToast(error ? 'Error: ' + error.message : `Enviado a ${email}${cc ? ' · CC: ' + cc : ''} ✓`, !error);
   if (!error) {
-    await registrarAuditoria('Formularios', 'Trámite reenviado a destinatario', `${id} → ${email}${cc ? ' · CC: ' + cc : ''}`);
+    await registrarAuditoria('Formularios', esUniformidad ? 'Trámite de uniformidad reenviado a la tienda colaboradora' : 'Trámite reenviado a destinatario', `${id} → ${email}${cc ? ' · CC: ' + cc : ''}`);
     $('modalVerFormulario').classList.add('hidden');
     await cargarFormulariosAdmin();
   }
@@ -2928,6 +2941,141 @@ async function crearAccesoTrabajadorFicha(id, btn) {
     if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = textoBtn; }
   }
 }
+// ---- Uniformidad y EPI — entrega inicial al alta (plantilla f18) ------------------------------
+// César: "cuando se da alta la ficha [...] ahí tiene que salir la uniformidad que corresponde a
+// ese puesto [...] introducir la talla [...] y le damos a enviar a firmar al trabajador [...] y
+// nosotros [...] lo enviaremos a nuestro colaborador, que es el proveedor de uniformidad, que es
+// una tienda" — mismo patrón que seguimientoContratoBlockHTML (tarjeta de pasos en la propia
+// ficha) y reutiliza el motor genérico de Formularios (plantilla f18, igual que f1-f17): la firma
+// del trabajador la hace la app del trabajador sin ningún cambio (ya firma cualquier trámite con
+// detalle/adjunto genérico — formulario_firmar no distingue plantillas) y la revisión/envío a la
+// tienda reutiliza el modal verFormularioSolicitud() ya existente, con RPC propia
+// (enviar_formulario_a_proveedor_uniformidad) para no mezclar el estado con el de gestoría.
+function uniformidadFichaBlockHTML(p, entregas, misFormularios) {
+  const catalogoPuesto = epiCatalogoCache.filter((c) => c.puesto_key === p.puesto_key);
+  const solicitudUniformidad = (misFormularios || [])
+    .filter((s) => s.plantilla_id === 'f18')
+    .sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud))[0];
+
+  if (!entregas.length) {
+    if (!catalogoPuesto.length) {
+      return `<div class="card card-pad" style="margin-top:16px;">
+        <div class="aprob-section-title" style="padding:0 0 10px;border-bottom:none;">🦺 Uniformidad y EPI</div>
+        <p class="sub-c" style="margin:0;">Este puesto${p.puesto_key ? ' (' + p.puesto_key + ')' : ''} todavía no tiene catálogo de uniformidad/EPI definido en «Uniformidad y EPIs → Catálogo por puesto».</p>
+      </div>`;
+    }
+    return `<div class="card card-pad" style="margin-top:16px;">
+      <div class="aprob-section-title" style="padding:0 0 10px;border-bottom:none;">🦺 Uniformidad y EPI</div>
+      <p class="sub-c" style="margin:0 0 10px;">Según el catálogo del puesto le corresponden ${catalogoPuesto.length} artículo(s). Genera la dotación para indicar las tallas y enviarla a firmar.</p>
+      <button type="button" class="btn btn-sm" id="btnGenerarDotacionEpi_${p.id}" onclick="generarDotacionEpiFicha('${p.id}', this)">🦺 Generar dotación desde el catálogo del puesto</button>
+    </div>`;
+  }
+
+  const soloLectura = !!solicitudUniformidad;
+  const filasHTML = entregas
+    .map(
+      (e) => `
+    <div class="row-item">
+      <div><b>${e.item}</b><br><span class="sub-c">${e.tipo || '—'} · cantidad ${e.cantidad || 1}</span></div>
+      <input type="text" id="tallaEpi_${e.id}" value="${e.talla ? String(e.talla).replace(/"/g, '&quot;') : ''}" placeholder="Talla estimada" style="max-width:140px;margin:0;" ${soloLectura ? 'disabled' : ''}>
+    </div>`
+    )
+    .join('');
+
+  let accionHTML;
+  if (!solicitudUniformidad) {
+    accionHTML = `<button type="button" class="btn btn-secondary btn-sm" id="btnGuardarTallasEpi_${p.id}" onclick="guardarTallasEpiFicha('${p.id}', this)">💾 Guardar tallas</button>
+      <button type="button" class="btn btn-sm" id="btnEnviarFirmarEpi_${p.id}" onclick="enviarUniformidadAFirmarFicha('${p.id}', this)">✉️ Enviar a firmar al trabajador</button>`;
+  } else if (solicitudUniformidad.estado === 'pendiente') {
+    accionHTML = `<span class="badge2 b-amber">⏳ Pendiente de firma del trabajador</span>`;
+  } else if (solicitudUniformidad.estado === 'firmado') {
+    accionHTML = `<span class="badge2 b-sky">✍️ Firmado por ${solicitudUniformidad.firma_nombre || p.nombre}</span>
+      <button type="button" class="btn btn-sm" onclick="verFormularioSolicitud('${solicitudUniformidad.id}')">👁️ Revisar y enviar a la tienda colaboradora</button>`;
+  } else if (solicitudUniformidad.estado === 'enviado_proveedor') {
+    accionHTML = `<span class="badge2 b-emerald">✅ Enviado a ${solicitudUniformidad.destinatario_email || 'la tienda colaboradora'}</span>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="verFormularioSolicitud('${solicitudUniformidad.id}')">👁️ Ver</button>`;
+  } else {
+    accionHTML = `<button type="button" class="btn btn-secondary btn-sm" onclick="verFormularioSolicitud('${solicitudUniformidad.id}')">👁️ Ver</button>`;
+  }
+
+  return `<div class="card card-pad" style="margin-top:16px;">
+    <div class="aprob-section-title" style="padding:0 0 10px;border-bottom:none;">🦺 Uniformidad y EPI — dotación de alta</div>
+    ${filasHTML}
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">${accionHTML}</div>
+  </div>`;
+}
+
+async function generarDotacionEpiFicha(trabajadorId, btn) {
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando…'; }
+  try {
+    const { data: trabajador } = await sb.from('personas_trabajadoras').select('puesto_key').eq('id', trabajadorId).maybeSingle();
+    if (!trabajador || !trabajador.puesto_key) { mostrarToast('Esta persona no tiene puesto_key asignado.', false); return; }
+    const catalogoPuesto = epiCatalogoCache.filter((c) => c.puesto_key === trabajador.puesto_key);
+    if (!catalogoPuesto.length) { mostrarToast('El puesto no tiene catálogo de uniformidad/EPI.', false); return; }
+    const fechaHoy = new Date().toISOString().slice(0, 10);
+    const { error } = await sb.from('epi_entregas').insert(
+      catalogoPuesto.map((item) => ({
+        hotel_id: usuarioActual.hotel_id,
+        trabajador_id: trabajadorId,
+        item: item.item,
+        tipo: item.tipo,
+        cantidad: item.cantidad || 1,
+        fecha_entrega: fechaHoy,
+        conformidad_firmada: false
+      }))
+    );
+    if (error) { mostrarToast('Error al generar la dotación: ' + error.message, false); return; }
+    mostrarToast('Dotación generada ✓', true);
+    await renderFichaAdmin(trabajadorId);
+  } finally {
+    if (btn && document.body.contains(btn)) btn.disabled = false;
+  }
+}
+
+async function guardarTallasEpiFicha(trabajadorId, btn) {
+  if (btn && btn.disabled) return;
+  const textoOriginal = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  try {
+    const inputs = document.querySelectorAll('[id^="tallaEpi_"]');
+    await Promise.all(Array.from(inputs).map((inp) => sb.from('epi_entregas').update({ talla: inp.value.trim() || null }).eq('id', inp.id.replace('tallaEpi_', ''))));
+    mostrarToast('Tallas guardadas ✓', true);
+    await renderFichaAdmin(trabajadorId);
+  } finally {
+    if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = textoOriginal; }
+  }
+}
+
+// Crea la solicitud de firma (plantilla f18, motor genérico de Formularios — mismo botón
+// "✍️ Firmar" que el resto de trámites en la app del trabajador, sin tocar su código) con el
+// detalle de artículos/tallas que RR.HH. acaba de confirmar.
+async function enviarUniformidadAFirmarFicha(trabajadorId, btn) {
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  try {
+    const { data: entregas } = await sb.from('epi_entregas').select('*').eq('trabajador_id', trabajadorId).order('created_at', { ascending: true });
+    if (!entregas || !entregas.length) { mostrarToast('No hay dotación generada todavía.', false); return; }
+    const detalle = entregas
+      .map((e) => `${e.item} (${e.tipo || '—'}) · cantidad ${e.cantidad || 1}${e.talla ? ' · talla ' + e.talla : ' · talla sin indicar'}`)
+      .join('<br>');
+    const { error } = await sb.from('formularios_solicitudes').insert({
+      hotel_id: usuarioActual.hotel_id,
+      trabajador_id: trabajadorId,
+      plantilla_id: 'f18',
+      estado: 'pendiente',
+      detalle,
+      fecha_solicitud: new Date().toISOString()
+    });
+    if (error) { mostrarToast('Error al enviar a firmar: ' + error.message, false); return; }
+    mostrarToast('Enviado a firmar ✓ — el trabajador lo verá en sus trámites pendientes', true);
+    await cargarFormulariosAdmin();
+    await renderFichaAdmin(trabajadorId);
+  } finally {
+    if (btn && document.body.contains(btn)) btn.disabled = false;
+  }
+}
+
 // ---- Seguimiento del contrato — alta con gestoría (C6-C8 del prototipo, migración 0074) -------
 // 5 pasos: solicitud de alta enviada (correo real) → alta confirmada por gestoría (simulado — la
 // app no puede recibir correo externo real) → contrato recibido (simulado) → firmado en oficina
@@ -3103,6 +3251,9 @@ async function renderFichaAdmin(id) {
   if (!p || !el) return;
   const { data: docs } = await sb.from('documentos').select('*').eq('trabajador_id', id).order('fecha', { ascending: false });
   fichaAdminDocumentosCache = docs || [];
+  // César: dotación de uniformidad/EPI de esta persona (talla editable antes de enviarla a firmar) —
+  // no está en ningún caché global (epi_entregas es por persona), se consulta aquí igual que docs/seg.
+  const { data: entregasEpiFicha } = await sb.from('epi_entregas').select('*').eq('trabajador_id', id).order('created_at', { ascending: true });
   let { data: seg } = await sb.from('seguimiento_contrato').select('*').eq('trabajador_id', id).maybeSingle();
   // César (07/11/2026): "la solicitud de alta ya está enviada, debería salir marcada [...] para que
   // no esté ocupando espacio ni para que no se duplique, hay que quitarlo" — si esta persona viene
@@ -3187,6 +3338,8 @@ async function renderFichaAdmin(id) {
       <div class="row-item"><span class="sub-c">Formación obligatoria (${horasFormacion.toFixed(1)} h)</span><b>${fmtEur(costeFormacion)}</b></div>
       <div class="row-item" style="border-bottom:none;"><span><b>Coste total de cobertura</b></span><b>${fmtEur(costeTotal)}</b></div>
     </div>
+
+    ${uniformidadFichaBlockHTML(p, entregasEpiFicha || [], misFormularios)}
 
     ${seguimientoContratoBlockHTML(p, seg)}
 
