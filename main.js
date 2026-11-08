@@ -1723,10 +1723,23 @@ function generarDocumentoFormularioPDFBlob(s) {
 function verDocumentoFormularioNuevaPestana(id) {
   const s = formulariosSolicitudesCache.find((x) => x.id === id);
   if (!s) return;
-  const blob = new Blob([generarDocumentoFormularioHTML(s)], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  const html = generarDocumentoFormularioHTML(s);
+  const overlay = document.createElement('div');
+  overlay.id = 'visorDocumentoFormularioOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:900px;width:100%;height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35);">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #e2e8f0;">' +
+    '<span style="font-weight:600;color:#0f172a;">Documento</span>' +
+    '<button type="button" id="cerrarVisorDocumentoFormulario" class="btn btn-secondary btn-sm">Cerrar ✕</button>' +
+    '</div>' +
+    '<iframe id="visorDocumentoFormularioIframe" style="flex:1;border:0;width:100%;background:#fff;"></iframe>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  const iframe = overlay.querySelector('#visorDocumentoFormularioIframe');
+  iframe.srcdoc = html;
+  const cerrar = () => overlay.remove();
+  overlay.querySelector('#cerrarVisorDocumentoFormulario').addEventListener('click', cerrar);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
 }
 
 function descargarDocumentoFormulario(id) {
