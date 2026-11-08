@@ -1572,7 +1572,7 @@ function verFormularioSolicitud(id) {
     ${(s.estado === 'enviado_proveedor' || s.estado === 'gestoria') ? `<p class="sub-c" style="margin:10px 0 0;color:#166534;font-weight:600;">✅ Ya enviado${s.destinatario_email ? ' a ' + s.destinatario_email : ''}${s.destinatario_cc_email ? ' · CC: ' + s.destinatario_cc_email : ''} — si vuelves a pulsar "Enviar", se reenviará de nuevo.</p>` : ''}
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
       <button type="button" class="btn btn-sm" onclick="reenviarFormularioADestinatario('${s.id}')">📧 Enviar a este destinatario</button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="verDocumentoFormularioNuevaPestana('${s.id}')">📄 Abrir PDF</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="verDocumentoFormularioNuevaPestana('${s.id}')">👁 Ver</button>
       <button type="button" class="btn btn-secondary btn-sm" onclick="descargarDocumentoFormulario('${s.id}')">⬇ Descargar PDF</button>
     </div>`;
   $('verFormularioDocFrame').srcdoc = generarDocumentoFormularioHTML(s);
@@ -1723,27 +1723,10 @@ function generarDocumentoFormularioPDFBlob(s) {
 function verDocumentoFormularioNuevaPestana(id) {
   const s = formulariosSolicitudesCache.find((x) => x.id === id);
   if (!s) return;
-  const ventana = window.open('', '_blank');
-  if (ventana) {
-    ventana.document.title = 'Generando PDF…';
-    ventana.document.write('<p style="font-family:Arial,sans-serif;color:#64748b;padding:40px;text-align:center;">Generando PDF…</p>');
-  }
-  generarDocumentoFormularioPDFBlob(s)
-    .then((blob) => {
-      if (ventana && !ventana.closed) {
-        const url = ventana.URL.createObjectURL(blob);
-        ventana.location.href = url;
-        setTimeout(() => { try { ventana.URL.revokeObjectURL(url); } catch (err) {} }, 60000);
-      } else {
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-      }
-    })
-    .catch((e) => {
-      if (ventana && !ventana.closed) ventana.document.body.innerHTML = `<p style="font-family:Arial,sans-serif;color:#b91c1c;padding:40px;">No se pudo generar el PDF: ${e.message}</p>`;
-      mostrarToast('No se pudo generar el PDF: ' + e.message, false);
-    });
+  const blob = new Blob([generarDocumentoFormularioHTML(s)], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 function descargarDocumentoFormulario(id) {
