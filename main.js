@@ -1513,11 +1513,11 @@ body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:800px;margin
 .signature-box{margin-top:32px;border:2px solid #166534;border-radius:10px;padding:16px 20px;background:#ecfdf5;}
 .badge-signed{display:inline-block;background:#166534;color:#fff;font-size:11px;font-weight:bold;padding:3px 10px;border-radius:999px;margin-bottom:8px;}
 .footer-note{margin-top:26px;font-size:10px;color:#64748b;}
-.print-bar{max-width:800px;margin:14px auto 0;padding:0 24px;text-align:right;}
-.print-bar button{font-family:Arial,sans-serif;background:#166534;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer;}
+.print-bar{max-width:800px;margin:26px auto 0;padding:14px 24px 0;text-align:right;border-top:1px solid #cbd5e1;}
+.print-bar button{font-family:Arial,sans-serif;background:#fff;color:#475569;border:1px solid #cbd5e1;padding:7px 14px;border-radius:6px;font-size:12.5px;cursor:pointer;}
+.print-bar .print-hint{display:block;font-size:11px;color:#94a3b8;margin-top:6px;}
 @media print{ .print-bar{display:none;} body{margin:0;padding:20px;} }
 </style></head><body>
-<div class="print-bar"><button onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button></div>
 <div class="letterhead"><div class="brand">Personal4Pax</div><div style="text-align:right;font-size:12px;color:#475569;">Documento generado automáticamente<br>${fechaSolicitud}</div></div>
 <div class="doc-title">${plantilla.nombre || s.plantilla_id}</div>
 <div class="doc-block">${plantilla.bloque || '—'}</div>
@@ -1533,6 +1533,13 @@ body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:800px;margin
 ${detalleHtml}
 ${firmaBloque}
 <p class="footer-note">Documento generado por Personal4Pax a partir del formulario digital firmado por la persona trabajadora. Sustituye a la versión en papel a todos los efectos internos y de tramitación con la gestoría laboral.</p>
+<!-- César (08/11/2026): "primero abrir/ver, la opción de imprimir después" — este documento ya SE
+     ESTÁ VIENDO (iframe, pestaña nueva o archivo descargado) antes de llegar aquí abajo; imprimir
+     queda como paso aparte y opcional al final, nunca como lo primero que se ofrece. -->
+<div class="print-bar">
+  <button type="button" onclick="window.print()">🖨️ Imprimir (opcional)</button>
+  <span class="print-hint">Para guardarlo como PDF: en el cuadro de impresión, elige "Guardar como PDF" como destino/impresora.</span>
+</div>
 </body></html>`;
 }
 
@@ -3076,7 +3083,7 @@ async function enviarUniformidadAFirmarFicha(trabajadorId, btn) {
     if (!entregas || !entregas.length) { mostrarToast('No hay dotación generada todavía.', false); return; }
     const detalle = entregas
       .map((e) => `${e.item} (${e.tipo || '—'}) · cantidad ${e.cantidad || 1}${e.talla ? ' · talla ' + e.talla : ' · talla sin indicar'}`)
-      .join('<br>');
+      .join('\n');
     const { error } = await sb.from('formularios_solicitudes').insert({
       hotel_id: usuarioActual.hotel_id,
       trabajador_id: trabajadorId,
