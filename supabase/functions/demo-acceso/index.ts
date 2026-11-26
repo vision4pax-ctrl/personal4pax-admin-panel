@@ -18,6 +18,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const MINUTOS: Record<string, number> = { inicial: 4, ampliada: 15 };
+const HORAS_PARA_ABRIR = 24;
 const BLOQUEO = '87600h'; // 10 años: el acceso se reabre solo al canjear un enlace nuevo
 
 const cors = {
@@ -117,7 +118,8 @@ Deno.serve(async (req) => {
       if (errCfg || !cfg) return json({ error: 'Falta la configuración de la demo (tabla demo_config)' }, 500);
       if (!cfg.admin_user_id || !cfg.trabajador_user_id) return json({ error: 'Demo sin preparar: pulsa antes «Preparar demo» en esta página.' }, 409);
 
-      const abrirAntes = new Date(Date.now() + minutos * 60_000).toISOString();
+      // 24 horas para abrirlo; la demo dura `minutos` desde que se abre.
+      const abrirAntes = new Date(Date.now() + HORAS_PARA_ABRIR * 3_600_000).toISOString();
       const lote = crypto.randomUUID();
       const comun = { lote, modalidad, minutos, abrir_antes_de: abrirAntes, hotel_id: cfg.hotel_id };
       const tAdmin = await crearEnlace(db, { ...comun, rol: 'admin', user_id: cfg.admin_user_id });

@@ -23,7 +23,7 @@
 <body>
 <main>
   <h1>Generar enlaces de demostración</h1>
-  <p class="sub">Cada pareja de enlaces es de un solo uso. Si no se abren a tiempo, caducan.</p>
+  <p class="sub">Cada enlace es de un solo uso. Se puede abrir durante 24 horas y la demo dura 4 o 15 minutos desde que se abre.</p>
   <form id="f">
     <label for="modalidad">Modalidad</label>
     <select id="modalidad">
@@ -54,10 +54,15 @@
       body:JSON.stringify({accion:'generar',clave:$('clave').value,modalidad:$('modalidad').value})})
     .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Error');return d;});})
     .then(function(d){
-      var hora=new Date(d.abrir_antes_de).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-      $('info').textContent='Demo de '+d.minutos+' minutos. Ábranse antes de las '+hora+'.';
+      var limite=new Date(d.abrir_antes_de).toLocaleString('es-ES',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'});
+      $('info').textContent='Demo de '+d.minutos+' minutos desde que se abre. Los enlaces se pueden abrir hasta el '+limite+'.';
       $('eAdmin').textContent=d.enlace_admin; $('eTrab').textContent=d.enlace_trabajador;
-      $('eMsg').textContent='Le envío el acceso a la demostración de Personal4Pax ('+d.minutos+' minutos). Ábralo antes de las '+hora+':\n\n· Panel de Dirección / RR.HH.: '+d.enlace_admin+'\n· App de la persona trabajadora: '+d.enlace_trabajador;
+      $('eMsg').textContent='Le envío el acceso a la demostración de Personal4Pax.\n\n'+
+        'Puede abrir los enlaces en las próximas 24 horas (hasta el '+limite+'), cuando le venga bien.\n\n'+
+        'Importante: cada enlace se puede abrir una sola vez y la demostración dura '+d.minutos+' minutos desde que lo abre. Si lo cierra, no podrá volver a acceder. Le recomendamos abrir los dos a la vez: el panel en el ordenador y la app en el móvil.\n\n'+
+        '· Panel de Dirección / RR.HH.: '+d.enlace_admin+'\n'+
+        '· App de la persona trabajadora: '+d.enlace_trabajador+'\n\n'+
+        'Si necesita una demostración más larga, escríbanos a comercial@personal4pax.com.';
       $('res').style.display='block';
     })
     .catch(function(e){$('err').textContent=e.message;$('err').hidden=false;})
