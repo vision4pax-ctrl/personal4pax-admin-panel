@@ -17,6 +17,7 @@
   button.sec{background:#fff;color:var(--brand);border:1px solid var(--brand);margin-top:8px;width:auto;padding:7px 14px;font-size:13px}
   .res{margin-top:20px;display:none} .caja{background:var(--tint);border-radius:10px;padding:12px;margin-top:10px}
   .caja b{display:block;font-size:13px;margin-bottom:4px} .caja code{display:block;word-break:break-all;font-size:12px}
+  .caja code.msg{white-space:pre-wrap;word-break:normal;overflow-wrap:anywhere;font-family:inherit;font-size:13px;line-height:1.5}
   .err{color:#b42318;font-weight:600;margin-top:12px}
 </style>
 </head>
@@ -40,7 +41,8 @@
     <p class="sub" id="info"></p>
     <div class="caja"><b>Administración</b><code id="eAdmin"></code><button class="sec" data-c="eAdmin">Copiar</button></div>
     <div class="caja"><b>Persona trabajadora (Elena Torres)</b><code id="eTrab"></code><button class="sec" data-c="eTrab">Copiar</button></div>
-    <div class="caja"><b>Mensaje listo para enviar</b><code id="eMsg"></code><button class="sec" data-c="eMsg">Copiar</button></div>
+    <div class="caja"><b>Asunto (si lo envías por correo)</b><code class="msg" id="eAsunto">Envío de acceso a la demostración de Personal4Pax.</code><button class="sec" data-c="eAsunto">Copiar</button></div>
+    <div class="caja"><b>Mensaje listo para enviar</b><code class="msg" id="eMsg"></code><button class="sec" data-c="eMsg">Copiar</button></div>
   </div>
 </main>
 <script>
@@ -57,12 +59,27 @@
       var limite=new Date(d.abrir_antes_de).toLocaleString('es-ES',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'});
       $('info').textContent='Demo de '+d.minutos+' minutos desde que se abre. Los enlaces se pueden abrir hasta el '+limite+'.';
       $('eAdmin').textContent=d.enlace_admin; $('eTrab').textContent=d.enlace_trabajador;
-      $('eMsg').textContent='Le envío el acceso a la demostración de Personal4Pax.\n\n'+
-        'Puede abrir los enlaces en las próximas 24 horas (hasta el '+limite+'), cuando le venga bien.\n\n'+
-        'Importante: cada enlace se puede abrir una sola vez y la demostración dura '+d.minutos+' minutos desde que lo abre. Si lo cierra, no podrá volver a acceder. Le recomendamos abrir los dos a la vez: el panel en el ordenador y la app en el móvil.\n\n'+
-        '· Panel de Dirección / RR.HH.: '+d.enlace_admin+'\n'+
-        '· App de la persona trabajadora: '+d.enlace_trabajador+'\n\n'+
-        'Si necesita una demostración más larga, escríbanos a comercial@personal4pax.com.';
+      // Estructura definida por César (26/11/2026): bloques cortos y cada enlace en su propia línea.
+      $('eMsg').textContent=[
+        'Hola, te envío el acceso a la demostración de Personal4Pax.',
+        'Importante: cada enlace se puede abrir una sola vez y la demostración dura '+d.minutos+' minutos desde que lo abres.',
+        'Si lo cierras, no podrás volver a acceder.',
+        'Te recomendamos abrir los dos a la vez: el panel en el ordenador y la app en el móvil.',
+        'Puedes abrir los enlaces en las próximas 24 horas, desde el momento en que recibiste el mensaje.',
+        '',
+        '· Panel de Dirección / RR.HH.:',
+        '',
+        d.enlace_admin,
+        '',
+        '· App de la persona trabajadora:',
+        '',
+        d.enlace_trabajador,
+        '',
+        'Si necesitas una demostración más larga, escríbenos a comercial@personal4pax.com.',
+        '',
+        'Un saludo.',
+        'César Manccini Quintero'
+      ].join('\n');
       $('res').style.display='block';
     })
     .catch(function(e){$('err').textContent=e.message;$('err').hidden=false;})

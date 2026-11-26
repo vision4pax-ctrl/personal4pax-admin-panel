@@ -3,7 +3,9 @@
 
 const SUPABASE_URL = 'https://uybljgcimvnfbgumucwo.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_ndBnIFRxI4TB5YYJiBxdXQ_o_qVnb-i';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Clave de sesión propia: el panel y la app del trabajador están en el mismo dominio (GitHub Pages);
+// con la clave por defecto, entrar en una sustituía la sesión de la otra en el mismo navegador.
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { storageKey: 'p4p-admin-auth' } });
 
 function $(id) {
   return document.getElementById(id);

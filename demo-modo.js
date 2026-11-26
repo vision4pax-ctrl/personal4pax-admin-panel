@@ -3,6 +3,7 @@
  * Se configura con atributos en la etiqueta <script>:
  *   data-form, data-email, data-password  → ids del formulario de acceso de cada app
  *   data-app="admin" | "trabajador"
+ *   data-storage-key                       → clave de sesión de supabase-js de esa app
  * Qué hace: si la URL trae #demo=<token>, canjea el enlace (un solo uso), entra con las
  * credenciales de un solo uso que devuelve el servidor, muestra la cuenta atrás y, al terminar,
  * cierra la sesión. No toca el resto de la aplicación. */
@@ -12,6 +13,8 @@
   var ANON = 'sb_publishable_ndBnIFRxI4TB5YYJiBxdXQ_o_qVnb-i';
   var CLAVE_EXPIRA = 'p4p_demo_expira';
   var CONTACTO = 'comercial@personal4pax.com';
+  // Cada app guarda su sesión con su propia clave (mismo dominio): solo se toca la de esta app.
+  var CLAVE_SESION = cfg.storageKey || 'sb-uybljgcimvnfbgumucwo-auth-token';
 
   function llamar(cuerpo, jwt) {
     return fetch(FN, {
@@ -23,7 +26,7 @@
 
   function limpiarSesionLocal() {
     try {
-      Object.keys(localStorage).forEach(function (k) { if (/^sb-.*-auth-token/.test(k)) localStorage.removeItem(k); });
+      localStorage.removeItem(CLAVE_SESION);
       sessionStorage.removeItem(CLAVE_EXPIRA);
     } catch (e) { /* almacenamiento no disponible */ }
   }
@@ -72,9 +75,8 @@
   window.abrirAppTrabajadorDemo = function (trabajadorId, btn) {
     var jwt = null;
     try {
-      Object.keys(localStorage).forEach(function (k) {
-        if (/^sb-.*-auth-token/.test(k)) { var v = JSON.parse(localStorage.getItem(k)); jwt = v && (v.access_token || (v.currentSession && v.currentSession.access_token)); }
-      });
+      var v = JSON.parse(localStorage.getItem(CLAVE_SESION) || 'null');
+      jwt = v && (v.access_token || (v.currentSession && v.currentSession.access_token));
     } catch (e) { /* sin sesión */ }
     if (btn) btn.disabled = true;
     llamar({ accion: 'acceso-trabajador', trabajador_id: trabajadorId }, jwt)
