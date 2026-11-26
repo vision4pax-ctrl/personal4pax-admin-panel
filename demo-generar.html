@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Personal4Pax · Generar demo</title>
+<style>
+  :root{--ink:#0f1b24;--muted:#4a5863;--brand:#157A37;--tint:#eef5f1;--line:#d5dde2;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--tint);color:var(--ink);padding:24px 16px;}
+  main{max-width:560px;margin:0 auto;background:#fff;border-radius:14px;padding:24px;border:1px solid var(--line);}
+  h1{font-size:20px;margin:0 0 4px} p.sub{margin:0 0 18px;color:var(--muted);font-size:14px}
+  label{display:block;font-weight:700;font-size:13px;margin:14px 0 6px}
+  input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px}
+  button{background:var(--brand);color:#fff;border:0;border-radius:999px;padding:11px 18px;font-weight:700;font-size:15px;cursor:pointer;margin-top:18px;width:100%}
+  button.sec{background:#fff;color:var(--brand);border:1px solid var(--brand);margin-top:8px;width:auto;padding:7px 14px;font-size:13px}
+  .res{margin-top:20px;display:none} .caja{background:var(--tint);border-radius:10px;padding:12px;margin-top:10px}
+  .caja b{display:block;font-size:13px;margin-bottom:4px} .caja code{display:block;word-break:break-all;font-size:12px}
+  .err{color:#b42318;font-weight:600;margin-top:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Generar enlaces de demostración</h1>
+  <p class="sub">Cada pareja de enlaces es de un solo uso. Si no se abren a tiempo, caducan.</p>
+  <form id="f">
+    <label for="modalidad">Modalidad</label>
+    <select id="modalidad">
+      <option value="inicial">Demo inicial · 4 minutos (primer contacto)</option>
+      <option value="ampliada">Demo ampliada · 15 minutos (prospecto interesado)</option>
+    </select>
+    <label for="clave">Clave de generación</label>
+    <input id="clave" type="password" autocomplete="off" required>
+    <button type="submit" id="btn">Generar enlaces</button>
+    <p class="err" id="err" hidden></p>
+  </form>
+  <div class="res" id="res">
+    <p class="sub" id="info"></p>
+    <div class="caja"><b>Administración</b><code id="eAdmin"></code><button class="sec" data-c="eAdmin">Copiar</button></div>
+    <div class="caja"><b>Persona trabajadora (Elena)</b><code id="eTrab"></code><button class="sec" data-c="eTrab">Copiar</button></div>
+    <div class="caja"><b>Mensaje listo para enviar</b><code id="eMsg"></code><button class="sec" data-c="eMsg">Copiar</button></div>
+  </div>
+</main>
+<script>
+(function(){
+  var FN='https://uybljgcimvnfbgumucwo.supabase.co/functions/v1/demo-acceso';
+  var ANON='sb_publishable_ndBnIFRxI4TB5YYJiBxdXQ_o_qVnb-i';
+  var $=function(id){return document.getElementById(id);};
+  $('f').addEventListener('submit',function(e){
+    e.preventDefault(); $('err').hidden=true; $('btn').disabled=true;
+    fetch(FN,{method:'POST',headers:{'Content-Type':'application/json',apikey:ANON,Authorization:'Bearer '+ANON},
+      body:JSON.stringify({accion:'generar',clave:$('clave').value,modalidad:$('modalidad').value})})
+    .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Error');return d;});})
+    .then(function(d){
+      var hora=new Date(d.abrir_antes_de).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      $('info').textContent='Demo de '+d.minutos+' minutos. Ábranse antes de las '+hora+'.';
+      $('eAdmin').textContent=d.enlace_admin; $('eTrab').textContent=d.enlace_trabajador;
+      $('eMsg').textContent='Le envío el acceso a la demostración de Personal4Pax ('+d.minutos+' minutos). Ábralo antes de las '+hora+':\n\n· Panel de Dirección / RR.HH.: '+d.enlace_admin+'\n· App de la persona trabajadora: '+d.enlace_trabajador;
+      $('res').style.display='block';
+    })
+    .catch(function(e){$('err').textContent=e.message;$('err').hidden=false;})
+    .finally(function(){$('btn').disabled=false;});
+  });
+  document.querySelectorAll('button.sec').forEach(function(b){
+    b.addEventListener('click',function(){navigator.clipboard.writeText($(b.dataset.c).textContent);b.textContent='Copiado ✓';setTimeout(function(){b.textContent='Copiar';},1500);});
+  });
+})();
+</script>
+</body>
+</html>

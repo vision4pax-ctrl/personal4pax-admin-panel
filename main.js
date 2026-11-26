@@ -3355,6 +3355,7 @@ async function renderFichaAdmin(id) {
       <button type="button" class="btn btn-secondary btn-sm" onclick="abrirFichaEmpleado('${p.id}')">✎ Editar</button>
       <button type="button" class="btn btn-secondary btn-sm" onclick="abrirCorreoTrabajadorModal('${p.id}')">📧 Enviar correo</button>
       ${!p.user_id ? `<button type="button" class="btn btn-sm" id="btnCrearAccesoFicha_${p.id}" onclick="crearAccesoTrabajadorFicha('${p.id}', this)">🔑 Crear acceso a la app</button>` : ''}
+      ${window.__p4pDemoActiva && p.user_id ? `<button type="button" class="btn btn-sm" onclick="abrirAppTrabajadorDemo('${p.id}', this)">📱 Abrir su app (demo)</button>` : ''}
     </div>
 
     <div class="grid g2" style="margin-top:16px;align-items:start;">
