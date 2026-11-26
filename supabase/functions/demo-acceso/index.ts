@@ -8,9 +8,11 @@
 //   canjear            { token }              → credenciales de un solo uso para entrar
 //   acceso-trabajador  { trabajador_id }      → enlace para una persona creada DURANTE la demo
 //                                               (llamada con la sesión del administrador demo)
-//   caducar            (cabecera x-demo-cron) → bloquea el acceso de las sesiones terminadas
+//   preparar           { clave }              → crea (una vez) el administrador demo y el acceso de Elena
+//   caducar            {}                     → bloquea accesos terminados y borra lo creado en demos acabadas
+//                                               (idempotente e inofensivo: lo llama pg_cron cada 5 minutos)
 //
-// Secretos de la función: DEMO_CLAVE_GENERADOR, DEMO_CRON_SECRETO, ADMIN_APP_URL, TRABAJADOR_APP_URL.
+// Secretos de la función: DEMO_CLAVE_GENERADOR, ADMIN_APP_URL, TRABAJADOR_APP_URL.
 // SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY los pone Supabase.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -20,7 +22,7 @@ const BLOQUEO = '87600h'; // 10 años: el acceso se reabre solo al canjear un en
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-demo-cron',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -70,6 +72,39 @@ Deno.serve(async (req) => {
   const db = admin();
 
   try {
+    // --------------------------------------------------------------- preparar
+    if (body.accion === 'preparar') {
+      if (!igualSeguro(String(body.clave || ''), Deno.env.get('DEMO_CLAVE_GENERADOR') || '')) return json({ error: 'Clave incorrecta' }, 401);
+      const { data: cfg } = await db.from('demo_config').select('*').eq('id', 1).maybeSingle();
+      if (!cfg) return json({ error: 'Aplica antes la migración 0116 (tabla demo_config)' }, 500);
+      const cambios: Record<string, string> = {};
+
+      // Administrador demo dedicado: así las cuentas reales de los hoteles demo no se bloquean nunca.
+      if (!cfg.admin_user_id) {
+        const { data: nuevo, error } = await db.auth.admin.createUser({
+          email: 'demo.direccion@personal4pax.com', password: tokenAleatorio(18), email_confirm: true, ban_duration: BLOQUEO,
+        });
+        if (error || !nuevo?.user) return json({ error: 'No se pudo crear el administrador demo: ' + (error?.message || '') }, 500);
+        const { error: eU } = await db.from('usuarios').insert({ id: nuevo.user.id, hotel_id: cfg.hotel_id, nombre: 'Dirección (demo)', rol: 'rrhh_direccion' });
+        if (eU) return json({ error: 'No se pudo crear el perfil del administrador demo: ' + eU.message }, 500);
+        cambios.admin_user_id = nuevo.user.id;
+      }
+
+      // Acceso de Elena: su ficha no tenía cuenta. Se crea con un correo propio de la demo, sin enviar nada.
+      if (!cfg.trabajador_user_id) {
+        const { data: nueva, error } = await db.auth.admin.createUser({
+          email: 'demo.elena@personal4pax.com', password: tokenAleatorio(18), email_confirm: true, ban_duration: BLOQUEO,
+        });
+        if (error || !nueva?.user) return json({ error: 'No se pudo crear el acceso de Elena: ' + (error?.message || '') }, 500);
+        const { error: eP } = await db.from('personas_trabajadoras').update({ user_id: nueva.user.id }).eq('id', cfg.trabajador_id).is('user_id', null);
+        if (eP) return json({ error: 'No se pudo enlazar el acceso con la ficha de Elena: ' + eP.message }, 500);
+        cambios.trabajador_user_id = nueva.user.id;
+      }
+
+      if (Object.keys(cambios).length) await db.from('demo_config').update(cambios).eq('id', 1);
+      return json({ ok: true, creados: Object.keys(cambios) });
+    }
+
     // ---------------------------------------------------------------- generar
     if (body.accion === 'generar') {
       const clave = String(body.clave || '');
@@ -80,6 +115,7 @@ Deno.serve(async (req) => {
 
       const { data: cfg, error: errCfg } = await db.from('demo_config').select('*').eq('id', 1).maybeSingle();
       if (errCfg || !cfg) return json({ error: 'Falta la configuración de la demo (tabla demo_config)' }, 500);
+      if (!cfg.admin_user_id || !cfg.trabajador_user_id) return json({ error: 'Demo sin preparar: pulsa antes «Preparar demo» en esta página.' }, 409);
 
       const abrirAntes = new Date(Date.now() + minutos * 60_000).toISOString();
       const lote = crypto.randomUUID();
@@ -152,7 +188,6 @@ Deno.serve(async (req) => {
 
     // ---------------------------------------------------------------- caducar
     if (body.accion === 'caducar') {
-      if (!igualSeguro(req.headers.get('x-demo-cron') || '', Deno.env.get('DEMO_CRON_SECRETO') || '')) return json({ error: 'No autorizado' }, 401);
       const ahora = new Date().toISOString();
       const { data: vencidas } = await db.from('demo_enlaces').select('id, user_id')
         .lt('expira_en', ahora).is('acceso_bloqueado_en', null);
@@ -167,8 +202,13 @@ Deno.serve(async (req) => {
         }
         await db.from('demo_enlaces').update({ acceso_bloqueado_en: ahora }).eq('id', v.id);
       }
-      // Enlaces que nadie abrió a tiempo: no requieren acción, solo quedan caducados.
-      return json({ revisadas: (vencidas || []).length, bloqueados });
+      // Borra lo creado durante las demos ya terminadas (como service_role, que es quien puede
+      // saltarse el bloqueo de borrado de registros laborales) y después las cuentas creadas en ellas.
+      const { data: limpieza, error: eL } = await db.rpc('demo_limpiar');
+      if (eL) return json({ error: 'Limpieza: ' + eL.message, bloqueados }, 500);
+      const cuentas: string[] = (limpieza && limpieza.cuentas_a_borrar) || [];
+      for (const uid of cuentas) await db.auth.admin.deleteUser(uid);
+      return json({ revisadas: (vencidas || []).length, bloqueados, limpieza, cuentas_borradas: cuentas.length });
     }
 
     return json({ error: 'Acción no válida' }, 400);

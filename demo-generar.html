@@ -33,6 +33,7 @@
     <label for="clave">Clave de generación</label>
     <input id="clave" type="password" autocomplete="off" required>
     <button type="submit" id="btn">Generar enlaces</button>
+    <button type="button" class="sec" id="btnPreparar">Preparar demo (solo la primera vez)</button>
     <p class="err" id="err" hidden></p>
   </form>
   <div class="res" id="res">
@@ -62,7 +63,15 @@
     .catch(function(e){$('err').textContent=e.message;$('err').hidden=false;})
     .finally(function(){$('btn').disabled=false;});
   });
-  document.querySelectorAll('button.sec').forEach(function(b){
+  $('btnPreparar').addEventListener('click',function(){
+    $('err').hidden=true;
+    fetch(FN,{method:'POST',headers:{'Content-Type':'application/json',apikey:ANON,Authorization:'Bearer '+ANON},
+      body:JSON.stringify({accion:'preparar',clave:$('clave').value})})
+    .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Error');return d;});})
+    .then(function(d){$('err').textContent=d.creados.length?'Demo preparada ✓ (cuentas creadas: '+d.creados.join(', ')+')':'La demo ya estaba preparada ✓';$('err').style.color='#157A37';$('err').hidden=false;})
+    .catch(function(e){$('err').textContent=e.message;$('err').style.color='';$('err').hidden=false;});
+  });
+  document.querySelectorAll('button.sec[data-c]').forEach(function(b){
     b.addEventListener('click',function(){navigator.clipboard.writeText($(b.dataset.c).textContent);b.textContent='Copiado ✓';setTimeout(function(){b.textContent='Copiar';},1500);});
   });
 })();
